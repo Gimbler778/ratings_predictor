@@ -1,0 +1,9 @@
+# Streamlit Cloud Compatible Requirements
+# Optimized for Python 3.13 deployment
+
+streamlit
+pandas
+numpy
+scikit-learn
+joblib
+plotly

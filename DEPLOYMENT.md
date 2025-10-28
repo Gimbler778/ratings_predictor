@@ -17,15 +17,37 @@
 
 ## Streamlit Cloud Deployment
 
-### Option 1: Direct Deployment
-1. Push your code to GitHub repository
-2. Go to [share.streamlit.io](https://share.streamlit.io)
-3. Connect your GitHub account
-4. Select your repository and branch
-5. Set main file path: `streamlit_app.py`
-6. Click "Deploy"
+### ⚠️ Important: Python 3.13 Compatibility
+For Streamlit Cloud deployment, use the compatible requirements:
 
-### Option 2: Community Cloud
+**Option A: Use streamlined requirements (RECOMMENDED)**
+```bash
+# Rename requirements_streamlit.txt to requirements.txt for deployment
+mv requirements_streamlit.txt requirements.txt
+```
+
+**Option B: Update existing requirements.txt**
+Use flexible version ranges instead of exact versions:
+```
+streamlit>=1.29.0
+pandas>=2.0.0
+numpy>=1.26.0
+scikit-learn>=1.3.0
+joblib>=1.3.0
+plotly>=5.15.0
+```
+
+### Deployment Steps
+1. **Fix Requirements**: Ensure compatible package versions (see above)
+2. **Push to GitHub**: Commit all changes including fixed requirements
+3. **Deploy on Streamlit Cloud**:
+   - Go to [share.streamlit.io](https://share.streamlit.io)
+   - Connect your GitHub account
+   - Select your repository and branch
+   - Set main file path: `streamlit_app.py`
+   - Click "Deploy"
+
+### Alternative: Community Cloud
 1. Visit [streamlit.io/cloud](https://streamlit.io/cloud)
 2. Sign in with GitHub
 3. Click "New app"
@@ -57,10 +79,34 @@ STREAMLIT_SERVER_PORT=8501
 
 ## Troubleshooting
 
-### Common Issues:
+### Streamlit Cloud Deployment Issues:
+
+**🚨 Python 3.13 + Pandas Compatibility Error**
+```
+× No solution found when resolving dependencies:
+pandas==2.1.3 depends on numpy>=1.26.0,<=1.26.4
+numpy==1.24.3 (conflicting versions)
+```
+
+**Solution:**
+1. Use the `requirements_streamlit.txt` file (rename to `requirements.txt`)
+2. Or update requirements.txt with flexible versions:
+   ```
+   streamlit>=1.29.0
+   pandas>=2.0.0  
+   numpy>=1.26.0
+   scikit-learn>=1.3.0
+   joblib>=1.3.0
+   plotly>=5.15.0
+   ```
+3. Commit and push changes
+4. Restart deployment on Streamlit Cloud
+
+### Common Local Issues:
 1. **ModuleNotFoundError**: Run `pip install -r requirements.txt`
 2. **Model files not found**: Ensure model files are in the same directory
 3. **Port already in use**: Change port in config.toml or use `--server.port 8502`
+4. **NumPy warnings on Windows**: Use Python 3.11 for better stability
 
 ### Performance Tips:
 - Model loading is cached for better performance
