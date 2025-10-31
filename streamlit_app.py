@@ -7,7 +7,31 @@ import plotly.express as px
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 from pathlib import Path
-from typing import Dict, Tuple
+from typing import Dict, Tuple, List
+
+# ============================================================================
+# HELPER FUNCTIONS FOR MODEL COMPATIBILITY
+# These functions are required for unpickling the trained model pipeline
+# They must match the functions used during model training in the notebook
+# ============================================================================
+
+def make_text_array(values):
+    """Convert series/dataframe to text array for TF-IDF vectorizer."""
+    if isinstance(values, pd.DataFrame):
+        series = values.iloc[:, 0]
+    else:
+        series = pd.Series(values)
+    return series.fillna('').astype(str).values
+
+
+def comma_tokenizer(text: str) -> List[str]:
+    """Custom tokenizer for comma-separated fields (genres, producers, etc)."""
+    return [token.strip().lower() for token in text.split(',') if token and token.strip()]
+
+
+# ============================================================================
+# PAGE CONFIGURATION
+# ============================================================================
 
 # Page configuration
 st.set_page_config(
