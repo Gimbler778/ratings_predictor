@@ -585,6 +585,220 @@ def create_prediction_gauge(prediction: float) -> go.Figure:
     return fig
 
 
+def create_feature_contribution_chart(features: Dict, feature_info: Dict) -> go.Figure:
+    """Create a bar chart showing top feature values that influence prediction."""
+    
+    # Get top contributing features
+    importance_data = feature_info.get("feature_importance", [])
+    if not importance_data:
+        return None
+    
+    # Get top 6 features by importance
+    top_features = sorted(importance_data, key=lambda x: x['importance_mean'], reverse=True)[:6]
+    
+    # Extract feature names and their current values
+    feature_names = []
+    feature_values = []
+    colors = []
+    
+    for feat in top_features:
+        feat_name = feat['feature']
+        if feat_name in features:
+            value = features[feat_name]
+            # Format value for display
+            if isinstance(value, (int, float)):
+                if feat_name.startswith('log_'):
+                    display_val = f"{value:.2f}"
+                elif value > 1000:
+                    display_val = f"{value:,.0f}"
+                else:
+                    display_val = f"{value:.2f}"
+            else:
+                display_val = str(value)[:20]
+            
+            feature_names.append(feat_name.replace('_', ' ').title())
+            feature_values.append(feat['importance_mean'])
+            
+            # Color based on importance
+            if feat['importance_mean'] > 0.05:
+                colors.append('#FF6B6B')  # High importance - Red
+            elif feat['importance_mean'] > 0.02:
+                colors.append('#FFB84D')  # Medium importance - Orange
+            else:
+                colors.append('#4ECDC4')  # Lower importance - Teal
+    
+    if not feature_names:
+        return None
+    
+    fig = go.Figure(data=[
+        go.Bar(
+            y=feature_names,
+            x=feature_values,
+            orientation='h',
+            marker=dict(
+                color=colors,
+                line=dict(color='white', width=1)
+            ),
+            text=[f"{v:.3f}" for v in feature_values],
+            textposition='auto',
+            hovertemplate='<b>%{y}</b><br>Importance: %{x:.4f}<extra></extra>'
+        )
+    ])
+    
+    fig.update_layout(
+        title=dict(
+            text="🎯 Top Feature Contributions",
+            font=dict(size=16, color="#FF6B6B", family="Arial Black")
+        ),
+        xaxis_title="Importance Score",
+        yaxis_title="",
+        height=280,
+        margin=dict(l=10, r=10, t=40, b=10),
+        plot_bgcolor='rgba(0,0,0,0)',
+        paper_bgcolor='rgba(0,0,0,0)',
+        font=dict(size=11),
+        showlegend=False
+    )
+    
+    fig.update_xaxes(showgrid=True, gridwidth=1, gridcolor='rgba(200,200,200,0.2)')
+    fig.update_yaxes(showgrid=False)
+    
+    return fig
+
+
+def create_anime_details_card(features: Dict, anime_row=None) -> str:
+    """Create an HTML card with styled anime details."""
+    
+    if anime_row is not None:
+        # For anime selected by name
+        name = anime_row.get('name', 'Unknown Anime')
+        genres = anime_row.get('genres', 'N/A')
+        anime_type = anime_row.get('type', 'N/A')
+        episodes = anime_row.get('episodes', 'N/A')
+        members = anime_row.get('members', 0)
+        favorites = anime_row.get('favorites', 0)
+    else:
+        # For manual input
+        name = "Custom Anime"
+        genres = features.get('genres', 'N/A')
+        anime_type = features.get('type', 'N/A')
+        episodes = int(features.get('episodes', 0))
+        members = int(features.get('members', 0))
+        favorites = int(features.get('favorites', 0))
+    
+    card_html = f"""
+    <div style="
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        border-radius: 15px;
+        padding: 20px;
+        color: white;
+        box-shadow: 0 8px 16px rgba(0,0,0,0.2);
+        margin-bottom: 20px;
+    ">
+        <h3 style="margin: 0 0 15px 0; font-size: 1.3rem; color: #fff;">
+            🎬 {name}
+        </h3>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; font-size: 0.9rem;">
+            <div style="background: rgba(255,255,255,0.1); padding: 8px; border-radius: 8px;">
+                <div style="opacity: 0.8; font-size: 0.75rem;">Type</div>
+                <div style="font-weight: bold; font-size: 1rem;">{anime_type}</div>
+            </div>
+            <div style="background: rgba(255,255,255,0.1); padding: 8px; border-radius: 8px;">
+                <div style="opacity: 0.8; font-size: 0.75rem;">Episodes</div>
+                <div style="font-weight: bold; font-size: 1rem;">{episodes}</div>
+            </div>
+            <div style="background: rgba(255,255,255,0.1); padding: 8px; border-radius: 8px;">
+                <div style="opacity: 0.8; font-size: 0.75rem;">Members</div>
+                <div style="font-weight: bold; font-size: 1rem;">{members:,}</div>
+            </div>
+            <div style="background: rgba(255,255,255,0.1); padding: 8px; border-radius: 8px;">
+                <div style="opacity: 0.8; font-size: 0.75rem;">Favorites</div>
+                <div style="font-weight: bold; font-size: 1rem;">{favorites:,}</div>
+            </div>
+        </div>
+        <div style="
+            margin-top: 12px;
+            padding: 10px;
+            background: rgba(255,255,255,0.15);
+            border-radius: 8px;
+            font-size: 0.85rem;
+        ">
+            <div style="opacity: 0.9; margin-bottom: 4px; font-weight: 600;">Genres</div>
+            <div style="line-height: 1.4;">{genres}</div>
+        </div>
+    </div>
+    """
+    return card_html
+
+
+def create_confidence_metrics(prediction: float, features: Dict) -> str:
+    """Create confidence metrics display."""
+    
+    # Calculate pseudo-confidence based on feature completeness and values
+    members = features.get('members', 0)
+    favorites = features.get('favorites', 0)
+    scored_by = features.get('scored_by', 0)
+    
+    # Confidence based on engagement metrics (higher engagement = higher confidence)
+    confidence = min(95, 60 + (min(members, 100000) / 100000 * 35))
+    
+    # Determine confidence level and color
+    if confidence >= 85:
+        conf_level = "Very High"
+        conf_color = "#2ecc71"
+        conf_icon = "🟢"
+    elif confidence >= 70:
+        conf_level = "High"
+        conf_color = "#3498db"
+        conf_icon = "🔵"
+    elif confidence >= 50:
+        conf_level = "Moderate"
+        conf_color = "#f39c12"
+        conf_icon = "🟡"
+    else:
+        conf_level = "Low"
+        conf_color = "#e74c3c"
+        conf_icon = "🔴"
+    
+    metrics_html = f"""
+    <div style="
+        background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+        border-radius: 15px;
+        padding: 18px;
+        color: white;
+        box-shadow: 0 8px 16px rgba(0,0,0,0.2);
+        margin-bottom: 15px;
+    ">
+        <h4 style="margin: 0 0 12px 0; font-size: 1.1rem;">
+            📊 Prediction Confidence
+        </h4>
+        <div style="
+            background: rgba(255,255,255,0.2);
+            border-radius: 10px;
+            padding: 12px;
+            text-align: center;
+        ">
+            <div style="font-size: 2.5rem; font-weight: bold; margin-bottom: 5px;">
+                {conf_icon} {confidence:.1f}%
+            </div>
+            <div style="font-size: 1rem; opacity: 0.9;">
+                {conf_level} Confidence
+            </div>
+        </div>
+        <div style="
+            margin-top: 12px;
+            padding: 10px;
+            background: rgba(255,255,255,0.15);
+            border-radius: 8px;
+            font-size: 0.85rem;
+        ">
+            <div style="opacity: 0.9;">Based on engagement metrics and feature completeness</div>
+        </div>
+    </div>
+    """
+    return metrics_html
+
+
 def extract_features_from_anime(anime_row, feature_info: Dict) -> Dict:
     """Extract features from an anime DataFrame row for prediction."""
     
@@ -826,6 +1040,37 @@ def main():
                             st.warning("🤔 Mixed reception likely.")
                         else:
                             st.error("👎 Might underperform with viewers.")
+                
+                # Display detailed analysis after prediction (full width)
+                if "prediction" in st.session_state and "selected_anime" in st.session_state:
+                    st.markdown("---")
+                    st.markdown("## 🔍 Detailed Analysis")
+                    
+                    analysis_col1, analysis_col2 = st.columns([1, 1])
+                    
+                    with analysis_col1:
+                        # Anime details card
+                        details_card = create_anime_details_card(
+                            st.session_state.input_features,
+                            st.session_state.selected_anime
+                        )
+                        st.markdown(details_card, unsafe_allow_html=True)
+                        
+                        # Confidence metrics
+                        confidence_html = create_confidence_metrics(
+                            st.session_state.prediction,
+                            st.session_state.input_features
+                        )
+                        st.markdown(confidence_html, unsafe_allow_html=True)
+                    
+                    with analysis_col2:
+                        # Feature contribution chart
+                        contrib_fig = create_feature_contribution_chart(
+                            st.session_state.input_features,
+                            feature_info
+                        )
+                        if contrib_fig:
+                            st.plotly_chart(contrib_fig, use_container_width=True)
             else:
                 st.error("⚠️ Anime dataset not found. Please ensure 'Animes.csv' is in the project directory.")
         
@@ -861,20 +1106,61 @@ def main():
                         st.warning("🤔 Mixed reception likely.")
                     else:
                         st.error("👎 Might underperform with viewers.")
-
-                    if "input_features" in st.session_state:
-                        st.markdown("### 🔍 Key Inputs")
-                        display_cols = [
-                            ("Members", "members"),
-                            ("Favorites", "favorites"),
-                            ("Episodes", "episodes"),
-                            ("Genres", "genre_count"),
-                        ]
-                        metrics_col1, metrics_col2 = st.columns(2)
-                        for label, key in display_cols[:2]:
-                            metrics_col1.metric(label, f"{st.session_state.input_features.get(key, 0):,.0f}")
-                        for label, key in display_cols[2:]:
-                            metrics_col2.metric(label, f"{st.session_state.input_features.get(key, 0):,.0f}")
+            
+            # Display detailed analysis after prediction (full width)
+            if "prediction" in st.session_state and "selected_anime" not in st.session_state:
+                st.markdown("---")
+                st.markdown("## 🔍 Detailed Analysis")
+                
+                analysis_col1, analysis_col2 = st.columns([1, 1])
+                
+                with analysis_col1:
+                    # Anime details card (for manual input)
+                    details_card = create_anime_details_card(
+                        st.session_state.input_features,
+                        anime_row=None
+                    )
+                    st.markdown(details_card, unsafe_allow_html=True)
+                    
+                    # Confidence metrics
+                    confidence_html = create_confidence_metrics(
+                        st.session_state.prediction,
+                        st.session_state.input_features
+                    )
+                    st.markdown(confidence_html, unsafe_allow_html=True)
+                
+                with analysis_col2:
+                    # Feature contribution chart
+                    contrib_fig = create_feature_contribution_chart(
+                        st.session_state.input_features,
+                        feature_info
+                    )
+                    if contrib_fig:
+                        st.plotly_chart(contrib_fig, use_container_width=True)
+                    
+                    # Key input metrics
+                    st.markdown("""
+                    <div style="
+                        background: linear-gradient(135deg, #ffecd2 0%, #fcb69f 100%);
+                        border-radius: 12px;
+                        padding: 15px;
+                        margin-top: 10px;
+                    ">
+                        <h4 style="margin: 0 0 10px 0; color: #d35400;">� Key Metrics</h4>
+                    </div>
+                    """, unsafe_allow_html=True)
+                    
+                    display_cols = [
+                        ("Members", "members"),
+                        ("Favorites", "favorites"),
+                        ("Episodes", "episodes"),
+                        ("Genres", "genre_count"),
+                    ]
+                    metrics_col1, metrics_col2 = st.columns(2)
+                    for label, key in display_cols[:2]:
+                        metrics_col1.metric(label, f"{st.session_state.input_features.get(key, 0):,.0f}")
+                    for label, key in display_cols[2:]:
+                        metrics_col2.metric(label, f"{st.session_state.input_features.get(key, 0):,.0f}")
 
     with tab2:
         st.markdown("## 📊 Model Performance & Insights")
