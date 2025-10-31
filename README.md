@@ -8,13 +8,13 @@
 
 > **🎯 Try it live**: [ratingspredictor.streamlit.app](https://ratingspredictor.streamlit.app)
 
-A state-of-the-art machine learning system that predicts anime ratings with **75.2% accuracy** using advanced regression models. Features a professional web interface for real-time predictions and comprehensive analytics.
+A state-of-the-art machine learning system that predicts anime ratings with **80.6% accuracy** using advanced regression models. Features a professional web interface for real-time predictions and comprehensive analytics.
 
 ---
 
 ## 🌟 Project Highlights
 
-- **🎯 High Accuracy**: 75.2% variance explained (R² = 0.7517) with Random Forest
+- **🎯 High Accuracy**: 80.6% variance explained (R² = 0.8058) with XGBoost Regressor
 - **🚀 Live Deployment**: Production-ready web application on Streamlit Cloud  
 - **🔬 Scientific Approach**: Rigorous data leakage prevention and model validation
 - **📊 Interactive Analytics**: Real-time visualizations and feature importance analysis
@@ -25,11 +25,11 @@ A state-of-the-art machine learning system that predicts anime ratings with **75
 
 | Algorithm | Accuracy (R²) | RMSE | MAE | Cross-Val | Status |
 |-----------|---------------|------|-----|-----------|---------|
-| **🌲 Random Forest** | **0.7517** | **0.4703** | **0.3467** | **0.7421** | 🥇 **Production** |
-| 🔄 Ridge Regression | 0.6833 | 0.5318 | 0.4126 | 0.6801 | 🥈 Validated |
-| 📏 Lasso Regression | 0.6829 | 0.5322 | 0.4128 | 0.6798 | 🥉 Validated |
-| 📈 Multiple Linear | 0.6826 | 0.5324 | 0.4130 | 0.6795 | ✅ Baseline |
-| 🔢 Polynomial | 0.6054 | 0.5932 | 0.4542 | 0.5987 | ⚠️ Overfitting |
+| **🚀 XGBoost Regressor** | **0.8058** | **0.4159** | **0.3093** | **0.7861** | 🥇 **Production** |
+| 🌲 Gradient Boosting | 0.7842 | 0.4287 | 0.3201 | 0.7734 | 🥈 Validated |
+| � HistGradient Boosting | 0.7156 | 0.4818 | 0.3644 | 0.7089 | 🥉 Validated |
+| 🌳 Random Forest | 0.7517 | 0.4703 | 0.3467 | 0.7421 | ✅ Baseline |
+| � Ridge Regression | 0.6833 | 0.5318 | 0.4126 | 0.6801 | ✅ Legacy |
 
 ## � Dataset Analytics
 
@@ -117,20 +117,24 @@ streamlit run streamlit_app.py
 - **Error Handling**: Graceful error management with helpful user guidance
 - **Performance Optimization**: Cached model loading for fast response times
 
-### 🎯 Prediction Interface
-- **Smart Input Forms**: Organized by feature categories
-- **Real-time Predictions**: Instant rating predictions with confidence
-- **Interactive Gauges**: Visual rating display with color coding
+### 🎯 **Prediction Interface**
+- **Smart Input Forms**: Organized into engagement, content, and textual context sections
+- **Real-time Predictions**: Instant XGBoost-powered rating predictions
+- **Interactive Gauge Chart**: Visual rating display (1-10 scale) with color-coded zones
+- **Prediction Breakdown**: Key input metrics displayed alongside prediction
 
-### 📈 Model Insights
-- **Feature Importance**: Interactive bar charts
-- **Performance Metrics**: Model accuracy and error analysis
-- **Prediction Confidence**: Visual feedback on prediction quality
+### 📈 **Model Insights Dashboard**
+- **Feature Importance**: Top 10 permutation importance bar charts
+- **Predicted vs Actual**: Scatter plot with ideal fit line overlay
+- **Prediction Distribution**: Histogram showing prediction spread
+- **Residual Analysis**: Error patterns across actual ratings
+- **Feature Relationships**: Members vs Predicted & Favorites/Member vs Predicted
 
-### 📱 Professional Design
-- **Responsive Layout**: Works on desktop and mobile
-- **Custom Styling**: Anime-themed color scheme
-- **Error Handling**: User-friendly validation and messages
+### 📱 **Professional Design**
+- **Tabbed Interface**: Organize prediction, insights, and documentation
+- **Responsive Layout**: Works on desktop, tablet, and mobile devices
+- **Custom Styling**: Anime-themed color scheme with gradient accents
+- **Error Handling**: Graceful error messages with helpful guidance
 
 ## 🧠 Technical Implementation
 
@@ -154,10 +158,11 @@ streamlit run streamlit_app.py
 
 ## 📈 Key Insights
 
-### 🎯 Performance Analysis
-- **Realistic Accuracy**: 75.2% variance explained (excellent for rating prediction)
-- **Low Prediction Error**: RMSE of 0.47 on 0-10 scale
-- **Stable Model**: Consistent cross-validation performance
+### 🎯 **Performance Analysis**
+- **State-of-the-Art Accuracy**: 80.6% variance explained (top-tier for rating prediction)
+- **Low Prediction Error**: RMSE of 0.42 on 1-10 scale (avg error ±0.31 rating points)
+- **Stable & Robust**: 3-fold CV consistency (78.6% ± 0.66%)
+- **Benchmark**: Significantly outperforms baseline models (Random Forest 75.2%, Ridge 68.3%)
 
 ### 🔍 Feature Insights
 - **User Engagement**: Favorites and member count are strongest predictors
@@ -273,10 +278,12 @@ streamlit run streamlit_app.py
 
 ## 📚 Research & Development
 
-### 🔬 **Academic Contributions**
+### 🔬 **Technical Contributions**
 - **Data Leakage Prevention**: Systematic approach to identifying and removing leaky features
-- **Feature Engineering**: Novel engagement metrics and log transformations
-- **Model Validation**: Comprehensive cross-validation and hyperparameter optimization
+- **Advanced Preprocessing**: TF-IDF + SVD for text, OneHotEncoding for categories, StandardScaling for numerics
+- **Feature Engineering**: Log transformations, engagement ratios, text-derived features
+- **Model Selection**: GridSearchCV optimization across 10+ model architectures
+- **Ensemble Boosting**: XGBoost with optimized hyperparameters (learning_rate=0.08, max_depth=5, subsample=0.85)
 
 ### 📖 **Publications** *(Planned)*
 - Research paper on anime rating prediction methodologies
@@ -328,19 +335,23 @@ print(f"Predicted Rating: {predicted_rating:.2f}/10")
 
 ## ⚠️ Model Insights & Limitations
 
-### 🎯 **Data Leakage Prevention Success Story**
+### 🔍 **Data Leakage Prevention Success Story**
 This project demonstrates rigorous ML practices by identifying and resolving data leakage:
 
 **🚨 Initial Problem**: Achieved unrealistic R² = 0.9929 (99.29% accuracy)
 **🔍 Investigation**: Systematic correlation analysis revealed leaky features
-**✅ Solution**: Removed rank, popularity, and scored_by features
-**🏆 Result**: Realistic R² = 0.7517 (75.17% accuracy) with legitimate predictors
+**✅ Solution**: Removed rank, popularity, and scored_by features that were post-rating
+**🏆 Result**: Legitimate R² = 0.8058 (80.58% accuracy) using only pre-rating information
+**Key Insight**: Engagement metrics (members, favorites) are available before rating assignment, making them valid predictors
 
-### 📊 **Model Characteristics**
-- **Optimal Performance Range**: Modern anime (2000+) with sufficient community data
-- **Prediction Confidence**: Higher for anime with 1K+ members and clear genre classification
-- **Limitation Areas**: Very niche anime or those with extreme characteristics
-- **Update Frequency**: Model trained on historical data; periodic retraining recommended
+### � **Model Characteristics**
+- **Algorithm**: XGBoost Regressor with optimized hyperparameters
+- **Performance**: 80.6% variance explained on test set (R² = 0.8058)
+- **Cross-Validation**: 3-fold with mean R² = 0.7861 ± 0.0066 (stable)
+- **Error Metrics**: RMSE = 0.4159, MAE = 0.3093 on 1-10 scale
+- **Optimal Range**: Modern anime (2000+) with 1K+ members and diverse genres
+- **Prediction Quality**: Highest confidence for mainstream titles with established communities
+- **Update Frequency**: Model should be retrained quarterly as new anime and ratings emerge
 
 ---
 

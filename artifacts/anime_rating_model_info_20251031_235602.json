@@ -1,0 +1,436 @@
+{
+  "model_name": "XGBoost Regressor",
+  "best_params": {
+    "model__colsample_bytree": 0.9,
+    "model__learning_rate": 0.05,
+    "model__max_depth": 5,
+    "model__min_child_weight": 1,
+    "model__n_estimators": 450,
+    "model__subsample": 0.85
+  },
+  "trained_at": "2025-10-31T23:56:02",
+  "model_performance": {
+    "cv_r2_mean": 0.7861,
+    "cv_r2_std": 0.0066,
+    "test_r2": 0.8058,
+    "rmse": 0.41588341237693105,
+    "mae": 0.3092793015361058
+  },
+  "data_info": {
+    "total_samples": 10577,
+    "train_samples": 8461,
+    "test_samples": 2116,
+    "feature_count": 31,
+    "numeric_feature_count": 23,
+    "categorical_feature_count": 3,
+    "text_feature_count": 5,
+    "target_mean": 6.3845646213482095,
+    "target_std": 0.9422757691869167
+  },
+  "base_defaults": {
+    "episodes": 2.0,
+    "popularity": 7561.0,
+    "favorites": 8.0,
+    "scored_by": 2213.0,
+    "members": 5717.0,
+    "type": "TV",
+    "source": "Manga",
+    "anime_rating": "PG-13 - Teens 13 or older",
+    "genres": "Hentai",
+    "overview": "",
+    "producers": "UNKNOWN",
+    "licensors": "UNKNOWN",
+    "studios": "UNKNOWN"
+  },
+  "ui_schema": {
+    "numeric": [
+      {
+        "name": "episodes",
+        "label": "Number of Episodes",
+        "default": 2.0,
+        "min": 1.0,
+        "max": 3057.0,
+        "step": 1,
+        "dtype": "int",
+        "help": "Total number of produced episodes."
+      },
+      {
+        "name": "popularity",
+        "label": "Popularity Rank",
+        "default": 7561.0,
+        "min": 1.0,
+        "max": 18080.0,
+        "step": 5,
+        "dtype": "int",
+        "help": "Popularity rank on MAL (lower is better)."
+      },
+      {
+        "name": "favorites",
+        "label": "Favorites Count",
+        "default": 8.0,
+        "min": 0.0,
+        "max": 217606.0,
+        "step": 100,
+        "dtype": "float",
+        "help": "Number of users who favorited the anime."
+      },
+      {
+        "name": "scored_by",
+        "label": "Scored By Count",
+        "default": 2213.0,
+        "min": 103.0,
+        "max": 2660903.0,
+        "step": 100,
+        "dtype": "float",
+        "help": "Number of users who scored the anime."
+      },
+      {
+        "name": "members",
+        "label": "Members Count",
+        "default": 5717.0,
+        "min": 245.0,
+        "max": 3744541.0,
+        "step": 1000,
+        "dtype": "float",
+        "help": "Users listing the anime (watching/completed/on-hold)."
+      }
+    ],
+    "categorical": {
+      "type": {
+        "name": "type",
+        "label": "Anime Type",
+        "options": [
+          "Movie",
+          "Music",
+          "ONA",
+          "OVA",
+          "Special",
+          "TV",
+          "UNKNOWN"
+        ],
+        "default": "TV",
+        "help": "Broadcast format used during training."
+      },
+      "source": {
+        "name": "source",
+        "label": "Source Material",
+        "options": [
+          "4-koma manga",
+          "Book",
+          "Card game",
+          "Game",
+          "Light novel",
+          "Manga",
+          "Mixed media",
+          "Music",
+          "Novel",
+          "Original",
+          "Other",
+          "Picture book",
+          "Radio",
+          "Unknown",
+          "Visual novel",
+          "Web manga"
+        ],
+        "default": "Manga",
+        "help": "Original source of the anime content."
+      },
+      "anime_rating": {
+        "name": "anime_rating",
+        "label": "Content Rating",
+        "options": [
+          "G - All Ages",
+          "PG - Children",
+          "PG-13 - Teens 13 or older",
+          "R - 17+ (violence & profanity)",
+          "R+ - Mild Nudity",
+          "Rx - Hentai",
+          "UNKNOWN"
+        ],
+        "default": "PG-13 - Teens 13 or older",
+        "help": "Age suitability rating."
+      }
+    },
+    "text": {
+      "genres": {
+        "name": "genres",
+        "label": "Genres (comma-separated)",
+        "placeholder": "Separate tags with commas (e.g., Action, Adventure).",
+        "help": "Separate tags with commas (e.g., Action, Adventure).",
+        "widget": "text"
+      },
+      "overview": {
+        "name": "overview",
+        "label": "Synopsis / Overview",
+        "placeholder": "Short synopsis or description.",
+        "help": "Short synopsis or description.",
+        "widget": "textarea"
+      },
+      "producers": {
+        "name": "producers",
+        "label": "Producers (comma-separated)",
+        "placeholder": "Comma-separated producers.",
+        "help": "Comma-separated producers.",
+        "widget": "text"
+      },
+      "licensors": {
+        "name": "licensors",
+        "label": "Licensors (comma-separated)",
+        "placeholder": "Comma-separated licensors.",
+        "help": "Comma-separated licensors.",
+        "widget": "text"
+      },
+      "studios": {
+        "name": "studios",
+        "label": "Studios (comma-separated)",
+        "placeholder": "Comma-separated animation studios.",
+        "help": "Comma-separated animation studios.",
+        "widget": "text"
+      }
+    }
+  },
+  "model_features": [
+    "genres",
+    "overview",
+    "type",
+    "episodes",
+    "producers",
+    "licensors",
+    "studios",
+    "source",
+    "anime_rating",
+    "popularity",
+    "favorites",
+    "scored_by",
+    "members",
+    "genre_count",
+    "producer_count",
+    "studio_count",
+    "licensor_count",
+    "overview_char_len",
+    "overview_word_len",
+    "has_licensor",
+    "episodes_missing",
+    "log_popularity",
+    "log_favorites",
+    "log_scored_by",
+    "log_members",
+    "log_episodes",
+    "members_per_episode",
+    "favorites_per_episode",
+    "favorites_per_member",
+    "scored_by_per_member",
+    "is_long_series"
+  ],
+  "engineered_features": [
+    "genre_count",
+    "producer_count",
+    "studio_count",
+    "licensor_count",
+    "overview_char_len",
+    "overview_word_len",
+    "has_licensor",
+    "episodes_missing",
+    "log_popularity",
+    "log_favorites",
+    "log_scored_by",
+    "log_members",
+    "log_episodes",
+    "members_per_episode",
+    "favorites_per_episode",
+    "favorites_per_member",
+    "scored_by_per_member",
+    "is_long_series"
+  ],
+  "feature_importance": [
+    {
+      "feature": "favorites",
+      "importance_mean": 0.17561266598809555,
+      "importance_std": 0.007241095851125182
+    },
+    {
+      "feature": "genres",
+      "importance_mean": 0.09214425621562537,
+      "importance_std": 0.004312152920936881
+    },
+    {
+      "feature": "popularity",
+      "importance_mean": 0.08499673388055018,
+      "importance_std": 0.002420297699562741
+    },
+    {
+      "feature": "favorites_per_member",
+      "importance_mean": 0.058689624853966976,
+      "importance_std": 0.002599701449037996
+    },
+    {
+      "feature": "scored_by_per_member",
+      "importance_mean": 0.04595116231907183,
+      "importance_std": 0.00630507319744235
+    },
+    {
+      "feature": "studios",
+      "importance_mean": 0.04080734884213992,
+      "importance_std": 0.003551484425381279
+    },
+    {
+      "feature": "episodes",
+      "importance_mean": 0.02052738291621796,
+      "importance_std": 0.0010793416357127571
+    },
+    {
+      "feature": "members",
+      "importance_mean": 0.018976791151401037,
+      "importance_std": 0.001620740323295623
+    },
+    {
+      "feature": "type",
+      "importance_mean": 0.01897573493704606,
+      "importance_std": 0.0018549953286702851
+    },
+    {
+      "feature": "overview",
+      "importance_mean": 0.015932326371837724,
+      "importance_std": 0.0017318732391294665
+    },
+    {
+      "feature": "source",
+      "importance_mean": 0.013232467908641715,
+      "importance_std": 0.001731574461300905
+    },
+    {
+      "feature": "members_per_episode",
+      "importance_mean": 0.011881615158899725,
+      "importance_std": 0.0013622413848048214
+    },
+    {
+      "feature": "anime_rating",
+      "importance_mean": 0.008031907807191152,
+      "importance_std": 0.0007616438779147424
+    },
+    {
+      "feature": "licensors",
+      "importance_mean": 0.007832869158488714,
+      "importance_std": 0.00046868951432485213
+    },
+    {
+      "feature": "producers",
+      "importance_mean": 0.00752915502208297,
+      "importance_std": 0.0004716294109653797
+    },
+    {
+      "feature": "favorites_per_episode",
+      "importance_mean": 0.007434571284843122,
+      "importance_std": 0.0008401544730860232
+    },
+    {
+      "feature": "log_favorites",
+      "importance_mean": 0.007297803992384208,
+      "importance_std": 0.0009276237242189666
+    },
+    {
+      "feature": "scored_by",
+      "importance_mean": 0.004270345972063147,
+      "importance_std": 0.0005802144177283826
+    },
+    {
+      "feature": "genre_count",
+      "importance_mean": 0.002025378720513865,
+      "importance_std": 0.0005124022186472647
+    },
+    {
+      "feature": "log_episodes",
+      "importance_mean": 0.0010295755639766063,
+      "importance_std": 0.00026047879451589765
+    },
+    {
+      "feature": "overview_char_len",
+      "importance_mean": 0.0005036792460562239,
+      "importance_std": 0.00036398867773936684
+    },
+    {
+      "feature": "log_members",
+      "importance_mean": 0.0004458695848071764,
+      "importance_std": 0.0002733454384305072
+    },
+    {
+      "feature": "overview_word_len",
+      "importance_mean": 0.00039645671017665696,
+      "importance_std": 0.00020878222653807098
+    },
+    {
+      "feature": "log_scored_by",
+      "importance_mean": 0.00030763867859914806,
+      "importance_std": 0.00017320743823570454
+    },
+    {
+      "feature": "log_popularity",
+      "importance_mean": 4.478476802836917e-05,
+      "importance_std": 3.408773857012222e-05
+    },
+    {
+      "feature": "studio_count",
+      "importance_mean": 4.22623559120372e-05,
+      "importance_std": 0.00010562872896795464
+    },
+    {
+      "feature": "episodes_missing",
+      "importance_mean": 0.0,
+      "importance_std": 0.0
+    },
+    {
+      "feature": "is_long_series",
+      "importance_mean": 0.0,
+      "importance_std": 0.0
+    },
+    {
+      "feature": "has_licensor",
+      "importance_mean": 0.0,
+      "importance_std": 0.0
+    },
+    {
+      "feature": "licensor_count",
+      "importance_mean": -3.630231411866358e-07,
+      "importance_std": 7.515338356473026e-06
+    },
+    {
+      "feature": "producer_count",
+      "importance_mean": -6.542425116375095e-05,
+      "importance_std": 4.822011395264095e-05
+    }
+  ],
+  "top_features": [
+    {
+      "feature": "favorites",
+      "importance": 0.17561266598809555
+    },
+    {
+      "feature": "genres",
+      "importance": 0.09214425621562537
+    },
+    {
+      "feature": "popularity",
+      "importance": 0.08499673388055018
+    },
+    {
+      "feature": "favorites_per_member",
+      "importance": 0.058689624853966976
+    },
+    {
+      "feature": "scored_by_per_member",
+      "importance": 0.04595116231907183
+    }
+  ],
+  "residual_summary": {
+    "mean": 0.0074729109306191175,
+    "std": 0.41591455757102036,
+    "min": -4.009812145233154,
+    "max": 1.7759826087951662
+  },
+  "artifacts": {
+    "model_file": "anime_rating_best_model_20251031_235602.joblib",
+    "importance_file": "anime_rating_permutation_importance_20251031_235602.csv",
+    "evaluation_file": "anime_rating_evaluation_sample_20251031_235602.csv",
+    "evaluation_sample_size": 1000
+  }
+}

@@ -6,9 +6,8 @@ import pickle
 import plotly.express as px
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
-import glob
-import os
-from datetime import datetime
+from pathlib import Path
+from typing import Dict, Tuple
 
 # Page configuration
 st.set_page_config(
@@ -62,426 +61,604 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
+ARTIFACT_DIR = Path(__file__).resolve().parent / "artifacts"
+MODEL_PATTERN = "best_anime_rating_model_*.joblib"
+INFO_PATTERN = "model_feature_info_*.pkl"
+
+
+def _latest_artifact(pattern: str) -> Path | None:
+    if not ARTIFACT_DIR.exists():
+        return None
+    candidates = sorted(ARTIFACT_DIR.glob(pattern))
+    return candidates[-1] if candidates else None
+
+
 @st.cache_resource
-def load_model_components():
-    """Load the trained model and related components"""
+def load_model_artifacts() -> Tuple[object, Dict, Path] | Tuple[None, None, None]:
+    """Load the most recent serialized model pipeline and metadata."""
     try:
-        # Find the latest model files
-        model_files = glob.glob("best_anime_rating_model_*.joblib")
-        scaler_files = glob.glob("feature_scaler_*.joblib")
-        info_files = glob.glob("model_feature_info_*.pkl")
-        
-        if not model_files or not scaler_files or not info_files:
-            st.error("Model files not found! Please ensure the model has been trained and saved.")
+        model_path = _latest_artifact(MODEL_PATTERN)
+        info_path = _latest_artifact(INFO_PATTERN)
+
+        if not model_path or not info_path:
+            st.error(
+                "Model artifacts were not found. Generate them from the training notebook before running the app."
+            )
             return None, None, None
-        
-        # Load the latest files
-        latest_model_file = max(model_files, key=os.path.getctime)
-        latest_scaler_file = max(scaler_files, key=os.path.getctime)
-        latest_info_file = max(info_files, key=os.path.getctime)
-        
-        # Load components
-        model = joblib.load(latest_model_file)
-        scaler = joblib.load(latest_scaler_file)
-        
-        with open(latest_info_file, 'rb') as f:
+
+        model = joblib.load(model_path)
+        with open(info_path, "rb") as f:
             feature_info = pickle.load(f)
-        
-        return model, scaler, feature_info
-    
-    except Exception as e:
-        st.error(f"Error loading model: {str(e)}")
+
+        return model, feature_info, model_path
+    except Exception as exc:  # pragma: no cover - surface to UI
+        st.error(f"Error loading model artifacts: {exc}")
         return None, None, None
 
-def create_feature_input_form(feature_info):
-    """Create input form for anime features"""
+
+def _count_tokens(value: str) -> int:
+    if not value:
+        return 0
+    return sum(1 for token in value.split(',') if token.strip())
+
+
+def _safe_ratio(numerator: float, denominator: float) -> float:
+    if denominator and denominator != 0:
+        return float(numerator) / float(denominator)
+    return 0.0
+
+
+def _safe_log(value: float) -> float:
+    return float(np.log1p(max(value, 0)))
+
+
+def _default_option(options: list[str], fallback: str) -> str:
+    return options[0] if options else fallback
+
+
+def create_feature_input_form(feature_info: Dict) -> Dict:
+    """Collect raw inputs and engineer the feature dictionary expected by the pipeline."""
+
     st.markdown('<p class="sub-header">🎬 Enter Anime Details</p>', unsafe_allow_html=True)
-    
-    # Get feature names and create organized input sections
-    feature_names = feature_info['feature_names']
-    
-    # Initialize feature dict
-    features = {}
-    
-    # Main features section
+
+    category_options = feature_info.get("category_options", {})
+    type_options = category_options.get("type", ["TV", "Movie", "OVA", "Special", "ONA", "Music"])
+    source_options = category_options.get("source", ["Original", "Manga", "Light novel", "Other"])
+    rating_options = category_options.get(
+        "anime_rating",
+        [
+            "G - All Ages",
+            "PG - Children",
+            "PG-13 - Teens 13 or older",
+            "R - 17+ (violence & profanity)",
+            "R+ - Mild Nudity",
+            "Rx - Hentai",
+        ],
+    )
+
     col1, col2, col3 = st.columns(3)
-    
+
     with col1:
-        st.markdown("**📊 User Engagement**")
+        st.markdown("**📊 Engagement Signals**")
         members = st.number_input(
-            "Members Count", 
-            min_value=1, 
-            max_value=3000000, 
-            value=50000,
-            help="Number of users who have this anime in their list"
+            "Members",
+            min_value=0,
+            max_value=3_000_000,
+            value=125_000,
+            help="Number of users who track this anime",
         )
         favorites = st.number_input(
-            "Favorites Count", 
-            min_value=0, 
-            max_value=200000, 
-            value=1000,
-            help="Number of users who marked this as favorite"
+            "Favorites",
+            min_value=0,
+            max_value=400_000,
+            value=5_000,
+            help="Users who marked this anime as a favourite",
         )
-        
+        scored_by = st.number_input(
+            "Score Count",
+            min_value=0,
+            max_value=3_000_000,
+            value=110_000,
+            help="Number of users who scored this anime",
+        )
+        popularity = st.number_input(
+            "Popularity Rank",
+            min_value=1,
+            max_value=10_000,
+            value=450,
+            help="Overall popularity rank (lower is more popular)",
+        )
+
     with col2:
-        st.markdown("**📺 Content Information**")
+        st.markdown("**📺 Content Profile**")
         episodes = st.number_input(
-            "Number of Episodes", 
-            min_value=1, 
-            max_value=2000, 
-            value=12,
-            help="Total number of episodes"
+            "Episodes",
+            min_value=1,
+            max_value=2_000,
+            value=24,
+            help="Total number of released episodes",
         )
-        genre_count = st.number_input(
-            "Number of Genres", 
-            min_value=1, 
-            max_value=10, 
-            value=3,
-            help="How many genres this anime belongs to"
-        )
-        
-    with col3:
-        st.markdown("**🎭 Content Type**")
         anime_type = st.selectbox(
             "Anime Type",
-            ["TV", "Movie", "OVA", "Special", "ONA", "Music"],
-            help="Type of anime content"
+            options=type_options,
+            index=type_options.index("TV") if "TV" in type_options else 0,
         )
-        
+        source = st.selectbox(
+            "Source Material",
+            options=source_options,
+            index=source_options.index("Manga") if "Manga" in source_options else 0,
+        )
         anime_rating = st.selectbox(
             "Content Rating",
-            ["G - All Ages", "PG - Children", "PG-13 - Teens 13 or older", 
-             "R - 17+ (violence & profanity)", "R+ - Mild Nudity", "Rx - Hentai"],
-            help="Age rating classification"
+            options=rating_options,
+            index=rating_options.index("PG-13 - Teens 13 or older") if "PG-13 - Teens 13 or older" in rating_options else 0,
         )
-    
-    # Advanced features (auto-calculated)
-    st.markdown('<p class="sub-header">🔧 Advanced Features (Auto-calculated)</p>', unsafe_allow_html=True)
-    
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        st.info(f"**Log Members:** {np.log1p(members):.2f}")
-        st.info(f"**Log Favorites:** {np.log1p(favorites):.2f}")
-        st.info(f"**Log Episodes:** {np.log1p(episodes):.2f}")
-        
-    with col2:
-        favorites_per_member = favorites / members if members > 0 else 0
-        st.info(f"**Favorites per Member:** {favorites_per_member:.4f}")
-        st.info(f"**Is Movie:** {'Yes' if anime_type == 'Movie' else 'No'}")
-        st.info(f"**Is TV Series:** {'Yes' if anime_type == 'TV' else 'No'}")
-        st.info(f"**Is Long Series:** {'Yes' if episodes > 24 else 'No'}")
-    
-    # Create feature vector
-    for feature in feature_names:
-        if feature == 'members':
-            features[feature] = members
-        elif feature == 'favorites':
-            features[feature] = favorites
-        elif feature == 'episodes':
-            features[feature] = episodes
-        elif feature == 'genre_count':
-            features[feature] = genre_count
-        elif feature == 'log_members':
-            features[feature] = np.log1p(members)
-        elif feature == 'log_favorites':
-            features[feature] = np.log1p(favorites)
-        elif feature == 'log_episodes':
-            features[feature] = np.log1p(episodes)
-        elif feature == 'favorites_per_member':
-            features[feature] = favorites_per_member
-        elif feature == 'is_movie':
-            features[feature] = 1 if anime_type == 'Movie' else 0
-        elif feature == 'is_tv':
-            features[feature] = 1 if anime_type == 'TV' else 0
-        elif feature == 'is_long_series':
-            features[feature] = 1 if episodes > 24 else 0
-        elif feature == 'anime_id':
-            features[feature] = 1  # Default value
-        # Handle one-hot encoded features
-        elif feature.startswith('type_'):
-            type_name = feature.replace('type_', '')
-            features[feature] = 1 if anime_type == type_name else 0
-        elif feature.startswith('anime_rating_'):
-            rating_name = feature.replace('anime_rating_', '')
-            features[feature] = 1 if rating_name in anime_rating else 0
-        elif feature.startswith('source_'):
-            features[feature] = 0  # Default for source features
-        else:
-            features[feature] = 0  # Default value for other features
-    
+
+    with col3:
+        st.markdown("**🧾 Textual Context**")
+        genres = st.text_input(
+            "Genres (comma separated)",
+            value="Action, Adventure, Fantasy",
+            help="Example: Action, Adventure, Fantasy",
+        )
+        producers = st.text_input(
+            "Producers", value="Aniplex, Bandai Visual", help="Comma separated list"
+        )
+        studios = st.text_input(
+            "Studios", value="Bones", help="Comma separated list"
+        )
+        licensors = st.text_input(
+            "Licensors", value="Funimation", help="Comma separated list (optional)"
+        )
+
+    overview = st.text_area(
+        "Overview / Synopsis",
+        value=(
+            "In a world where heroes and villains clash, a young protagonist discovers hidden powers "
+            "that could change the fate of humanity."
+        ),
+        help="Add a concise synopsis. This fuels the TF-IDF features.",
+    )
+
+    # Engineered signals
+    favorites_per_member = _safe_ratio(favorites, members)
+    episodes_missing = int(episodes == 0)
+    licensor_count = _count_tokens(licensors)
+
+    info_col1, info_col2, info_col3 = st.columns(3)
+    with info_col1:
+        st.metric("Log Members", f"{_safe_log(members):.2f}")
+        st.metric("Log Favorites", f"{_safe_log(favorites):.2f}")
+    with info_col2:
+        st.metric("Log Score Count", f"{_safe_log(scored_by):.2f}")
+        st.metric("Favorites / Member", f"{favorites_per_member:.3f}")
+    with info_col3:
+        st.metric("Log Episodes", f"{_safe_log(episodes):.2f}")
+        st.metric("Long Series", "Yes" if episodes >= 50 else "No")
+
+    features: Dict[str, object] = {
+        "genres": genres.strip(),
+        "overview": overview.strip(),
+        "type": anime_type,
+        "episodes": float(episodes),
+        "producers": producers.strip(),
+        "licensors": licensors.strip(),
+        "studios": studios.strip(),
+        "source": source,
+        "anime_rating": anime_rating,
+        "popularity": float(popularity),
+        "favorites": float(favorites),
+        "scored_by": float(scored_by),
+        "members": float(members),
+        "genre_count": float(_count_tokens(genres)),
+        "producer_count": float(_count_tokens(producers)),
+        "studio_count": float(_count_tokens(studios)),
+        "licensor_count": float(licensor_count),
+        "overview_char_len": float(len(overview)),
+        "overview_word_len": float(len(overview.split())),
+        "has_licensor": float(1 if licensor_count > 0 else 0),
+        "episodes_missing": float(episodes_missing),
+        "log_popularity": _safe_log(popularity),
+        "log_favorites": _safe_log(favorites),
+        "log_scored_by": _safe_log(scored_by),
+        "log_members": _safe_log(members),
+        "log_episodes": _safe_log(episodes),
+        "members_per_episode": _safe_ratio(members, episodes),
+        "favorites_per_episode": _safe_ratio(favorites, episodes),
+        "favorites_per_member": favorites_per_member,
+        "scored_by_per_member": _safe_ratio(scored_by, members),
+        "is_long_series": float(1 if episodes >= 50 else 0),
+    }
+
     return features
 
-def predict_rating(model, features, feature_names):
-    """Make prediction using the trained model"""
+
+def predict_rating(model, feature_info: Dict, features: Dict) -> float | None:
+    """Run inference using the trained pipeline."""
+
     try:
-        # Create feature vector in correct order
-        feature_vector = []
-        for feature_name in feature_names:
-            feature_vector.append(features.get(feature_name, 0))
-        
-        # Convert to DataFrame with proper feature names
-        X_pred = pd.DataFrame([feature_vector], columns=feature_names)
-        
-        # Make prediction
-        prediction = model.predict(X_pred)[0]
-        
-        # Ensure prediction is within valid range (1-10)
-        prediction = max(1.0, min(10.0, prediction))
-        
-        return prediction
-    
-    except Exception as e:
-        st.error(f"Error making prediction: {str(e)}")
+        raw_columns = feature_info.get("raw_feature_names", [])
+        numeric_cols = set(feature_info.get("numeric_features", []))
+        categorical_cols = set(feature_info.get("categorical_features", []))
+        text_cols = set(feature_info.get("text_features", []))
+
+        row = {}
+        for column in raw_columns:
+            value = features.get(column)
+            if value is None:
+                if column in numeric_cols:
+                    value = 0.0
+                elif column in categorical_cols:
+                    value = "Unknown"
+                elif column in text_cols:
+                    value = ""
+                else:
+                    value = 0.0
+            row[column] = value
+
+        X_pred = pd.DataFrame([row])
+        prediction = float(model.predict(X_pred)[0])
+        return max(1.0, min(10.0, prediction))
+    except Exception as exc:  # pragma: no cover - reported to UI
+        st.error(f"Prediction failed: {exc}")
         return None
 
-def create_feature_importance_chart(feature_info):
-    """Create feature importance visualization"""
-    importance_data = feature_info['feature_importance']
-    
-    # Get top 10 features
-    sorted_features = sorted(importance_data.items(), key=lambda x: x[1], reverse=True)[:10]
-    feature_names = [item[0] for item in sorted_features]
-    importance_values = [item[1] for item in sorted_features]
-    
+
+def create_feature_importance_chart(feature_info: Dict) -> go.Figure:
+    """Build a horizontal bar chart for top permutation importances."""
+
+    importance_records = feature_info.get("feature_importance", [])
+    if not importance_records:
+        return go.Figure()
+
+    importance_df = (
+        pd.DataFrame(importance_records)
+        .sort_values("importance_mean", ascending=False)
+        .head(10)
+        .iloc[::-1]
+    )
+
     fig = px.bar(
-        x=importance_values,
-        y=feature_names,
-        orientation='h',
-        title="🔍 Top 10 Most Important Features",
-        labels={'x': 'Feature Importance', 'y': 'Features'},
-        color=importance_values,
-        color_continuous_scale='viridis'
+        importance_df,
+        x="importance_mean",
+        y="feature",
+        orientation="h",
+        color="importance_mean",
+        color_continuous_scale="Viridis",
+        labels={"importance_mean": "Permutation Importance", "feature": "Feature"},
+        title="🔍 Top 10 Features",
     )
-    
-    fig.update_layout(
-        height=400,
-        title_font_size=16,
-        yaxis={'categoryorder': 'total ascending'}
-    )
-    
+
+    fig.update_layout(height=420, yaxis_title="Feature", xaxis_title="Importance (Δ R²)")
     return fig
 
-def create_prediction_gauge(prediction):
+
+def create_dashboard_figures(feature_info: Dict) -> Tuple[go.Figure, go.Figure, go.Figure]:
+    """Generate three subplot dashboards (six charts total) for deployment."""
+
+    importance_records = feature_info.get("feature_importance", [])
+    importance_df = pd.DataFrame(importance_records)
+
+    eval_frame = feature_info.get("evaluation_frame")
+    if isinstance(eval_frame, pd.DataFrame):
+        eval_df = eval_frame.copy()
+    else:
+        eval_df = pd.DataFrame(eval_frame)
+
+    if eval_df.empty:
+        eval_df = pd.DataFrame({"actual": [], "predicted": [], "residual": []})
+
+    fig_a = make_subplots(
+        rows=1,
+        cols=2,
+        subplot_titles=("Top Feature Importance", "Predicted vs Actual"),
+    )
+
+    if not importance_df.empty:
+        top_imp = importance_df.sort_values("importance_mean", ascending=False).head(10).iloc[::-1]
+        fig_a.add_trace(
+            go.Bar(
+                x=top_imp["importance_mean"],
+                y=top_imp["feature"],
+                orientation="h",
+                marker=dict(color=top_imp["importance_mean"], colorscale="Viridis"),
+                name="Importance",
+            ),
+            row=1,
+            col=1,
+        )
+    else:
+        fig_a.add_annotation(
+            text="No importance data",
+            xref="x1",
+            yref="y1",
+            x=0.5,
+            y=0.5,
+            showarrow=False,
+        )
+
+    if not eval_df.empty:
+        diag_min = float(min(eval_df["actual"].min(), eval_df["predicted"].min()))
+        diag_max = float(max(eval_df["actual"].max(), eval_df["predicted"].max()))
+        fig_a.add_trace(
+            go.Scatter(
+                x=eval_df["actual"],
+                y=eval_df["predicted"],
+                mode="markers",
+                marker=dict(color="#1f77b4", opacity=0.5, size=8),
+                name="Predictions",
+            ),
+            row=1,
+            col=2,
+        )
+        fig_a.add_trace(
+            go.Scatter(
+                x=[diag_min, diag_max],
+                y=[diag_min, diag_max],
+                mode="lines",
+                line=dict(color="crimson", dash="dash"),
+                name="Ideal Fit",
+                showlegend=False,
+            ),
+            row=1,
+            col=2,
+        )
+
+    fig_a.update_xaxes(title_text="Importance (Δ R²)", row=1, col=1)
+    fig_a.update_yaxes(title_text="Feature", row=1, col=1)
+    fig_a.update_xaxes(title_text="Actual Rating", row=1, col=2)
+    fig_a.update_yaxes(title_text="Predicted Rating", row=1, col=2)
+    fig_a.update_layout(height=420, showlegend=False)
+
+    fig_b = make_subplots(
+        rows=1,
+        cols=2,
+        subplot_titles=("Prediction Distribution", "Residuals vs Actual"),
+    )
+
+    if not eval_df.empty:
+        fig_b.add_trace(
+            go.Histogram(
+                x=eval_df["predicted"],
+                nbinsx=30,
+                marker=dict(color="#4e79a7"),
+                name="Predicted",
+            ),
+            row=1,
+            col=1,
+        )
+        fig_b.add_trace(
+            go.Scatter(
+                x=eval_df["actual"],
+                y=eval_df["residual"],
+                mode="markers",
+                marker=dict(color="#f28e2b", opacity=0.5, size=8),
+                name="Residuals",
+            ),
+            row=1,
+            col=2,
+        )
+        fig_b.add_hline(y=0, line=dict(color="gray", dash="dash"), row=1, col=2)
+
+    fig_b.update_xaxes(title_text="Predicted Rating", row=1, col=1)
+    fig_b.update_yaxes(title_text="Count", row=1, col=1)
+    fig_b.update_xaxes(title_text="Actual Rating", row=1, col=2)
+    fig_b.update_yaxes(title_text="Residual", row=1, col=2)
+    fig_b.update_layout(height=420, showlegend=False)
+
+    fig_c = make_subplots(
+        rows=1,
+        cols=2,
+        subplot_titles=("Members vs Predicted", "Favorites/Member vs Predicted"),
+    )
+
+    if not eval_df.empty:
+        if "members" in eval_df.columns:
+            fig_c.add_trace(
+                go.Scatter(
+                    x=eval_df["members"],
+                    y=eval_df["predicted"],
+                    mode="markers",
+                    marker=dict(color="#59a14f", opacity=0.5, size=8),
+                    name="Members",
+                ),
+                row=1,
+                col=1,
+            )
+        if "favorites_per_member" in eval_df.columns:
+            fig_c.add_trace(
+                go.Scatter(
+                    x=eval_df["favorites_per_member"],
+                    y=eval_df["predicted"],
+                    mode="markers",
+                    marker=dict(color="#b07aa1", opacity=0.5, size=8),
+                    name="Fav / Member",
+                ),
+                row=1,
+                col=2,
+            )
+
+    fig_c.update_xaxes(title_text="Members", row=1, col=1)
+    fig_c.update_yaxes(title_text="Predicted Rating", row=1, col=1)
+    fig_c.update_xaxes(title_text="Favorites / Member", row=1, col=2)
+    fig_c.update_yaxes(title_text="Predicted Rating", row=1, col=2)
+    fig_c.update_layout(height=420, showlegend=False)
+
+    return fig_a, fig_b, fig_c
+
+def create_prediction_gauge(prediction: float) -> go.Figure:
     """Create a gauge chart for the prediction"""
-    fig = go.Figure(go.Indicator(
-        mode = "gauge+number+delta",
-        value = prediction,
-        domain = {'x': [0, 1], 'y': [0, 1]},
-        title = {'text': "Predicted Rating"},
-        delta = {'reference': 7.0},
-        gauge = {
-            'axis': {'range': [None, 10]},
-            'bar': {'color': "darkblue"},
-            'steps': [
-                {'range': [0, 5], 'color': "lightgray"},
-                {'range': [5, 7], 'color': "yellow"},
-                {'range': [7, 8.5], 'color': "orange"},
-                {'range': [8.5, 10], 'color': "green"}
-            ],
-            'threshold': {
-                'line': {'color': "red", 'width': 4},
-                'thickness': 0.75,
-                'value': 9
-            }
-        }
-    ))
-    
-    fig.update_layout(height=300)
+
+    fig = go.Figure(
+        go.Indicator(
+            mode="gauge+number",
+            value=prediction,
+            domain={"x": [0, 1], "y": [0, 1]},
+            title={"text": "Predicted Rating"},
+            gauge={
+                "axis": {"range": [1, 10]},
+                "bar": {"color": "#FF6B6B"},
+                "steps": [
+                    {"range": [1, 5], "color": "#f4f4f4"},
+                    {"range": [5, 7], "color": "#ffe082"},
+                    {"range": [7, 8.5], "color": "#ffcc80"},
+                    {"range": [8.5, 10], "color": "#81c784"},
+                ],
+            },
+        )
+    )
+
+    fig.update_layout(height=280, margin=dict(l=20, r=20, t=50, b=20))
     return fig
+
 
 def main():
-    """Main Streamlit application"""
-    
-    # Header
+    """Entry point for the Streamlit dashboard."""
+
     st.markdown('<h1 class="main-header">🎌 Anime Rating Predictor</h1>', unsafe_allow_html=True)
-    st.markdown("""
-    <div style="text-align: center; margin-bottom: 2rem;">
-        <p style="font-size: 1.2rem; color: #666;">
-        Predict anime ratings using advanced machine learning with <b>75.2% accuracy</b>! 
-        Built with Random Forest algorithm trained on 10,000+ anime data points.
-        </p>
-    </div>
-    """, unsafe_allow_html=True)
-    
-    # Load model components
-    model, scaler, feature_info = load_model_components()
-    
+
+    model, feature_info, model_path = load_model_artifacts()
     if model is None:
         st.stop()
-    
-    # Sidebar with model information
+
+    model_perf = feature_info.get("model_performance", {})
+    test_r2 = model_perf.get("test_r2", 0.0)
+    cv_r2_mean = model_perf.get("cv_r2_mean", 0.0)
+    cv_r2_std = model_perf.get("cv_r2_std", 0.0)
+    rmse = model_perf.get("rmse", float("nan"))
+    mae = model_perf.get("mae", float("nan"))
+
+    st.markdown(
+        f"""
+        <div style="text-align: center; margin-bottom: 1.5rem;">
+            <p style="font-size: 1.2rem; color: #666;">
+                Tuned <b>XGBoost Regressor</b> explaining <b>{test_r2 * 100:.1f}%</b> of the rating variance on the test split.
+            </p>
+            <p style="font-size: 0.95rem; color: #888;">Artifacts loaded from <code>{model_path.name}</code></p>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
     with st.sidebar:
-        st.markdown("## 📊 Model Information")
-        
-        model_perf = feature_info['model_performance']
-        st.metric("R² Score", f"{model_perf['r2_score']:.3f}", "75.2% accuracy")
-        st.metric("RMSE", f"{model_perf['rmse']:.3f}", "Low error")
-        st.metric("MAE", f"{model_perf['mae']:.3f}", "Mean absolute error")
-        
+        st.markdown("## 📊 Model Snapshot")
+        st.metric("Test R²", f"{test_r2:.3f}", delta=f"CV mean {cv_r2_mean:.3f} ± {cv_r2_std:.3f}")
+        st.metric("RMSE", f"{rmse:.3f}")
+        st.metric("MAE", f"{mae:.3f}")
+
         st.markdown("### 🎯 Top Features")
-        top_features = feature_info['top_features'][:5]
-        for i, feature in enumerate(top_features, 1):
-            st.write(f"{i}. **{feature['Feature']}**: {feature['Importance']:.3f}")
-        
-        st.markdown("### 📅 Model Details")
-        st.write(f"**Training Date**: {model_perf['training_date']}")
-        st.write(f"**Total Features**: {feature_info['data_info']['n_features']}")
-        st.write(f"**Training Samples**: {feature_info['data_info']['total_samples']:,}")
-    
-    # Main content area
+        top_df = pd.DataFrame(feature_info.get("top_features", [])).head(5)
+        if not top_df.empty:
+            for idx, row in top_df.iterrows():
+                st.write(f"{idx + 1}. **{row['feature']}** — {row['importance_mean']:.4f}")
+        else:
+            st.info("Feature importances unavailable.")
+
+        data_info = feature_info.get("data_info", {})
+        st.markdown("### 📅 Training Summary")
+        st.write(f"**Training Date**: {model_perf.get('training_date', 'N/A')}")
+        st.write(f"**Train Samples**: {data_info.get('train_samples', 0):,}")
+        st.write(f"**Test Samples**: {data_info.get('test_samples', 0):,}")
+        st.write(f"**Input Features**: {data_info.get('n_features', 0)}")
+
     tab1, tab2, tab3 = st.tabs(["🎯 Predict Rating", "📊 Model Insights", "ℹ️ About"])
-    
+
     with tab1:
-        # Prediction interface
-        col1, col2 = st.columns([2, 1])
-        
-        with col1:
-            # Feature input form
-            features = create_feature_input_form(feature_info)
-            
-            # Prediction button
+        col_form, col_result = st.columns([2, 1])
+
+        with col_form:
+            user_features = create_feature_input_form(feature_info)
             if st.button("🔮 Predict Rating", type="primary", use_container_width=True):
-                prediction = predict_rating(model, features, feature_info['feature_names'])
-                
+                prediction = predict_rating(model, feature_info, user_features)
                 if prediction is not None:
-                    # Store prediction in session state
                     st.session_state.prediction = prediction
-                    st.session_state.features = features
-        
-        with col2:
-            # Display prediction result
-            if hasattr(st.session_state, 'prediction'):
-                prediction = st.session_state.prediction
-                
-                # Gauge chart
-                gauge_fig = create_prediction_gauge(prediction)
+                    st.session_state.input_features = user_features
+
+        with col_result:
+            if "prediction" in st.session_state:
+                pred_value = st.session_state.prediction
+                gauge_fig = create_prediction_gauge(pred_value)
                 st.plotly_chart(gauge_fig, use_container_width=True)
-                
-                # Rating interpretation
-                st.markdown(f'<div class="prediction-result">Rating: {prediction:.2f}/10</div>', 
-                           unsafe_allow_html=True)
-                
-                if prediction >= 8.5:
-                    st.success("🌟 Excellent! This anime is predicted to be outstanding!")
-                elif prediction >= 7.0:
-                    st.info("👍 Good! This anime should be quite enjoyable!")
-                elif prediction >= 5.0:
-                    st.warning("🤔 Average. This anime might have mixed reviews.")
+                st.markdown(
+                    f'<div class="prediction-result">Predicted Rating: {pred_value:.2f}/10</div>',
+                    unsafe_allow_html=True,
+                )
+
+                if pred_value >= 8.5:
+                    st.success("🌟 Expected to be a standout hit!")
+                elif pred_value >= 7.0:
+                    st.info("👍 Strong audience reception anticipated.")
+                elif pred_value >= 5.0:
+                    st.warning("🤔 Mixed reception likely.")
                 else:
-                    st.error("👎 Below average. This anime might not be well-received.")
-                
-                # Feature contribution (simplified)
-                if hasattr(st.session_state, 'features'):
-                    st.markdown("### 🔍 Key Input Factors")
-                    features = st.session_state.features
-                    
-                    col_a, col_b = st.columns(2)
-                    with col_a:
-                        st.metric("Members", f"{features.get('members', 0):,}")
-                        st.metric("Episodes", f"{features.get('episodes', 0)}")
-                    with col_b:
-                        st.metric("Favorites", f"{features.get('favorites', 0):,}")
-                        st.metric("Genres", f"{features.get('genre_count', 0)}")
-    
+                    st.error("👎 Might underperform with viewers.")
+
+                if "input_features" in st.session_state:
+                    st.markdown("### 🔍 Key Inputs")
+                    display_cols = [
+                        ("Members", "members"),
+                        ("Favorites", "favorites"),
+                        ("Episodes", "episodes"),
+                        ("Genres", "genre_count"),
+                    ]
+                    metrics_col1, metrics_col2 = st.columns(2)
+                    for label, key in display_cols[:2]:
+                        metrics_col1.metric(label, f"{st.session_state.input_features.get(key, 0):,.0f}")
+                    for label, key in display_cols[2:]:
+                        metrics_col2.metric(label, f"{st.session_state.input_features.get(key, 0):,.0f}")
+
     with tab2:
-        # Model insights and visualizations
         st.markdown("## 📊 Model Performance & Insights")
-        
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            # Feature importance chart
-            importance_fig = create_feature_importance_chart(feature_info)
-            st.plotly_chart(importance_fig, use_container_width=True)
-        
-        with col2:
-            # Model performance metrics
-            st.markdown("### 🎯 Model Performance")
-            
-            perf = feature_info['model_performance']
-            
-            # Create performance visualization
-            metrics = ['R² Score', 'RMSE', 'MAE']
-            values = [perf['r2_score'], perf['rmse'], perf['mae']]
-            
-            # Normalize values for better visualization
-            normalized_values = [perf['r2_score'], 1-perf['rmse'], 1-perf['mae']]
-            
-            perf_fig = px.bar(
-                x=metrics,
-                y=values,
-                title="Model Performance Metrics",
-                color=values,
-                color_continuous_scale='RdYlGn'
-            )
-            
-            st.plotly_chart(perf_fig, use_container_width=True)
-            
-            # Data insights
-            st.markdown("### 📈 Dataset Insights")
-            data_info = feature_info['data_info']
-            st.write(f"**Total Samples**: {data_info['total_samples']:,}")
-            st.write(f"**Features Used**: {data_info['n_features']}")
-            st.write(f"**Average Rating**: {data_info['target_mean']:.2f}")
-            st.write(f"**Rating Std Dev**: {data_info['target_std']:.2f}")
-    
+
+        fig_a, fig_b, fig_c = create_dashboard_figures(feature_info)
+        st.plotly_chart(fig_a, use_container_width=True)
+        st.plotly_chart(fig_b, use_container_width=True)
+        st.plotly_chart(fig_c, use_container_width=True)
+
+        metrics_records = feature_info.get("metrics_summary", [])
+        if metrics_records:
+            metrics_df = pd.DataFrame(metrics_records)
+            st.markdown("### 📐 Metric Snapshot")
+            st.dataframe(metrics_df, use_container_width=True)
+
+        data_info = feature_info.get("data_info", {})
+        st.markdown("### 📈 Dataset Overview")
+        st.write(f"**Average Rating**: {data_info.get('target_mean', float('nan')):.2f}")
+        st.write(f"**Rating Std Dev**: {data_info.get('target_std', float('nan')):.2f}")
+        st.write(f"**Total Records**: {data_info.get('total_samples', 0):,}")
+
     with tab3:
-        # About section
         st.markdown("## ℹ️ About This Application")
-        
-        st.markdown("""
-        ### 🎌 Anime Rating Predictor
-        
-        This application uses a **Random Forest Regressor** trained on over 10,000 anime data points 
-        to predict anime ratings with **75.2% accuracy** (R² = 0.752).
-        
-        ### 🔬 How It Works
-        
-        1. **Data Collection**: Trained on comprehensive anime dataset from MyAnimeList
-        2. **Feature Engineering**: Created meaningful features like log transformations and ratios
-        3. **Data Leakage Prevention**: Removed features that could cause unrealistic predictions
-        4. **Model Training**: Used Random Forest with hyperparameter tuning and cross-validation
-        5. **Validation**: Achieved realistic performance metrics through rigorous testing
-        
-        ### 🎯 Key Features Used
-        
-        - **User Engagement**: Members count, favorites count, favorites per member ratio
-        - **Content Information**: Episode count, genre count, content type
-        - **Content Classification**: Anime type (TV/Movie/OVA), content rating
-        - **Engineered Features**: Log transformations, binary indicators
-        
-        ### 📊 Model Performance
-        
-        - **R² Score**: 0.752 (75.2% variance explained)
-        - **RMSE**: 0.470 (average prediction error)
-        - **MAE**: 0.347 (median prediction error)
-        
-        ### 🛠️ Technical Stack
-        
-        - **Machine Learning**: scikit-learn, Random Forest
-        - **Frontend**: Streamlit, Plotly
-        - **Data Processing**: pandas, numpy
-        - **Model Persistence**: joblib, pickle
-        
-        ### 👨‍💻 Usage Tips
-        
-        1. **Members Count**: Higher member counts generally correlate with better ratings
-        2. **Favorites Ratio**: A high favorites-to-members ratio indicates quality
-        3. **Episode Count**: Very long or very short series might have different rating patterns
-        4. **Genre Count**: Multi-genre anime might appeal to broader audiences
-        
-        ### ⚠️ Limitations
-        
-        - Predictions are based on historical data patterns
-        - Individual preferences may vary significantly
-        - New anime trends might not be captured
-        - Quality depends on the input data accuracy
-        
-        ---
-        
-        **Built with ❤️ using Streamlit and scikit-learn**
-        """)
+        st.markdown(
+            f"""
+            ### 🎌 Anime Rating Predictor
+
+            This interface deploys a tuned **XGBoost Regressor** trained on curated MyAnimeList metadata.
+
+            - **Test R²**: {test_r2:.3f}
+            - **RMSE**: {rmse:.3f}
+            - **MAE**: {mae:.3f}
+
+            #### 🔬 Highlights
+            1. 🧹 Robust preprocessing with TF-IDF + SVD for textual features and scalers for numerics.
+            2. 🛡️ Leakage-safe feature engineering (log scaling, ratios, length-based signals).
+            3. � Three-fold cross-validation with grid search for reliable hyperparameters.
+
+            #### � What ships with this app
+            - Serialized pipeline (`{model_path.name}`) with preprocessing and model weights.
+            - Deployment-ready metadata for visualisations and user guidance.
+            - Interactive charts showcasing model calibration and driver signals.
+
+            #### ⚠️ Limitations
+            - Predictions mirror historical patterns; niche or new titles may deviate.
+            - Text quality matters—concise, descriptive overviews offer better signal-to-noise.
+            - Engagement metrics (members, favorites) heavily influence predictions.
+
+            Built with ❤️ using Streamlit, scikit-learn, and XGBoost.
+            """,
+            unsafe_allow_html=True,
+        )
+
 
 if __name__ == "__main__":
     main()
