@@ -8,6 +8,8 @@ import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 from pathlib import Path
 from typing import Dict, Tuple, List
+from sklearn.base import BaseEstimator, TransformerMixin
+from sklearn.decomposition import TruncatedSVD
 
 # ============================================================================
 # HELPER FUNCTIONS FOR MODEL COMPATIBILITY
@@ -27,6 +29,37 @@ def make_text_array(values):
 def comma_tokenizer(text: str) -> List[str]:
     """Custom tokenizer for comma-separated fields (genres, producers, etc)."""
     return [token.strip().lower() for token in text.split(',') if token and token.strip()]
+
+
+class DenseTruncatedSVD(BaseEstimator, TransformerMixin):
+    """Custom SVD transformer that handles edge cases and returns dense arrays."""
+    
+    def __init__(self, n_components: int = 50, random_state: int = 42):
+        self.n_components = n_components
+        self.random_state = random_state
+        self._svd = None
+        self.actual_components_ = 0
+        self._use_identity = False
+
+    def fit(self, X, y=None):
+        n_features = X.shape[1]
+        if n_features <= 1:
+            self.actual_components_ = n_features
+            self._svd = None
+            self._use_identity = True
+            return self
+        self._use_identity = False
+        self.actual_components_ = min(self.n_components, n_features - 1)
+        self._svd = TruncatedSVD(n_components=self.actual_components_, random_state=self.random_state)
+        self._svd.fit(X)
+        return self
+
+    def transform(self, X):
+        if self._use_identity:
+            return X.toarray() if hasattr(X, 'toarray') else np.asarray(X)
+        if self._svd is None or self.actual_components_ == 0:
+            return np.zeros((X.shape[0], 0))
+        return self._svd.transform(X)
 
 
 # ============================================================================
