@@ -963,26 +963,40 @@ def main():
                         # Get anime data
                         anime_row = anime_df[anime_df['name'] == selected_anime].iloc[0]
                         
-                        # Display anime details in expandable section
-                        with st.expander("📊 View Anime Details", expanded=False):
-                            detail_col1, detail_col2 = st.columns(2)
-                            with detail_col1:
-                                st.write(f"**Type:** {anime_row.get('type', 'N/A')}")
-                                st.write(f"**Episodes:** {anime_row.get('episodes', 'N/A')}")
-                                st.write(f"**Source:** {anime_row.get('source', 'N/A')}")
-                                st.write(f"**Rating:** {anime_row.get('anime_rating', 'N/A')}")
-                            
-                            with detail_col2:
-                                st.write(f"**Members:** {anime_row.get('members', 0):,.0f}")
-                                st.write(f"**Favorites:** {anime_row.get('favorites', 0):,.0f}")
-                                st.write(f"**Popularity:** #{anime_row.get('popularity', 'N/A')}")
-                            
-                            if 'genres' in anime_row and pd.notna(anime_row['genres']):
-                                st.write(f"**Genres:** {anime_row['genres']}")
-                            
-                            if 'overview' in anime_row and pd.notna(anime_row['overview']):
-                                st.markdown("**Synopsis:**")
-                                st.write(anime_row['overview'])
+                        # 2-column layout: Details (75%) | Image (25%)
+                        col_details, col_image = st.columns([3, 1])
+                        
+                        with col_details:
+                            # Display anime details in expandable section
+                            with st.expander("📊 View Anime Details", expanded=False):
+                                detail_col1, detail_col2 = st.columns(2)
+                                with detail_col1:
+                                    st.write(f"**Type:** {anime_row.get('type', 'N/A')}")
+                                    st.write(f"**Episodes:** {anime_row.get('episodes', 'N/A')}")
+                                    st.write(f"**Source:** {anime_row.get('source', 'N/A')}")
+                                    st.write(f"**Rating:** {anime_row.get('anime_rating', 'N/A')}")
+                                
+                                with detail_col2:
+                                    st.write(f"**Members:** {anime_row.get('members', 0):,.0f}")
+                                    st.write(f"**Favorites:** {anime_row.get('favorites', 0):,.0f}")
+                                    st.write(f"**Popularity:** #{anime_row.get('popularity', 'N/A')}")
+                                
+                                if 'genres' in anime_row and pd.notna(anime_row['genres']):
+                                    st.write(f"**Genres:** {anime_row['genres']}")
+                                
+                                if 'overview' in anime_row and pd.notna(anime_row['overview']):
+                                    st.markdown("**Synopsis:**")
+                                    st.write(anime_row['overview'])
+                        
+                        with col_image:
+                            # Display anime image if available
+                            if 'image_url' in anime_row and pd.notna(anime_row['image_url']):
+                                try:
+                                    st.image(anime_row['image_url'], use_container_width=True)
+                                except:
+                                    st.info("🖼️ Image not available")
+                            else:
+                                st.info("🖼️ No image")
                         
                         # Predict button
                         if st.button("🔮 Predict Rating for This Anime", type="primary", use_container_width=True):
@@ -999,8 +1013,8 @@ def main():
                         if "prediction" in st.session_state and "selected_anime" in st.session_state:
                             st.markdown("---")
                             
-                            # 3-column layout: Analysis (left) | Image (center) | Results (right)
-                            col_analysis, col_image, col_results = st.columns([1.2, 0.8, 1])
+                            # 2-column layout: Analysis (left) | Results (right)
+                            col_analysis, col_results = st.columns([1.2, 1])
                             
                             with col_analysis:
                                 st.markdown("### 🔍 Analysis")
@@ -1020,18 +1034,10 @@ def main():
                                 if contrib_fig:
                                     st.plotly_chart(contrib_fig, use_container_width=True)
                             
-                            with col_image:
-                                anime_data = st.session_state.selected_anime
-                                # Display anime image if available
-                                if 'image_url' in anime_data and pd.notna(anime_data['image_url']):
-                                    try:
-                                        st.image(anime_data['image_url'], use_container_width=True)
-                                    except:
-                                        st.info("🖼️ Image not available")
-                            
                             with col_results:
                                 st.markdown("### 📊 Results")
                                 pred_value = st.session_state.prediction
+                                anime_data = st.session_state.selected_anime
                                 
                                 # Display prediction gauge
                                 gauge_fig = create_prediction_gauge(pred_value)
@@ -1041,16 +1047,6 @@ def main():
                                     f'<div class="prediction-result">Predicted Rating: {pred_value:.2f}/10</div>',
                                     unsafe_allow_html=True,
                                 )
-                                
-                                # Actual rating comparison if available
-                                if 'average_rating' in anime_data and pd.notna(anime_data['average_rating']):
-                                    actual = float(anime_data['average_rating'])
-                                    diff = pred_value - actual
-                                    st.metric(
-                                        "Actual Rating", 
-                                        f"{actual:.2f}/10",
-                                        delta=f"{diff:+.2f} (prediction diff)"
-                                    )
                                 
                                 # Rating interpretation
                                 if pred_value >= 8.5:
