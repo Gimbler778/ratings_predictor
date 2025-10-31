@@ -121,6 +121,22 @@ st.markdown("""
 ARTIFACT_DIR = Path(__file__).resolve().parent / "artifacts"
 MODEL_PATTERN = "best_anime_rating_model_*.joblib"
 INFO_PATTERN = "model_feature_info_*.pkl"
+ANIME_DATA_PATH = Path(__file__).resolve().parent / "Animes.csv"
+
+
+@st.cache_data
+def load_anime_dataset():
+    """Load the anime dataset for name-based selection."""
+    try:
+        if not ANIME_DATA_PATH.exists():
+            return None
+        df = pd.read_csv(ANIME_DATA_PATH)
+        # Standardize column names
+        df.columns = df.columns.str.strip().str.lower().str.replace('[^0-9a-zA-Z]+', '_', regex=True).str.strip('_')
+        return df
+    except Exception as e:
+        st.error(f"Error loading anime dataset: {e}")
+        return None
 
 
 def _latest_artifact(pattern: str) -> Path | None:
@@ -569,6 +585,85 @@ def create_prediction_gauge(prediction: float) -> go.Figure:
     return fig
 
 
+def extract_features_from_anime(anime_row, feature_info: Dict) -> Dict:
+    """Extract features from an anime DataFrame row for prediction."""
+    
+    def safe_get(key, default=0):
+        """Safely get value from anime row."""
+        val = anime_row.get(key, default)
+        if pd.isna(val):
+            return default
+        return val
+    
+    def count_tokens(text):
+        """Count comma-separated tokens."""
+        if pd.isna(text) or not text:
+            return 0
+        return sum(1 for token in str(text).split(',') if token.strip())
+    
+    # Extract raw values
+    members = float(safe_get('members', 0))
+    favorites = float(safe_get('favorites', 0))
+    scored_by = float(safe_get('scored_by', 0))
+    popularity = float(safe_get('popularity', 1))
+    episodes = float(safe_get('episodes', 1))
+    
+    genres = str(safe_get('genres', ''))
+    producers = str(safe_get('producers', ''))
+    studios = str(safe_get('studios', ''))
+    licensors = str(safe_get('licensors', ''))
+    overview = str(safe_get('overview', ''))
+    
+    anime_type = str(safe_get('type', 'TV'))
+    source = str(safe_get('source', 'Original'))
+    anime_rating = str(safe_get('anime_rating', 'PG-13 - Teens 13 or older'))
+    
+    # Calculate derived features
+    genre_count = count_tokens(genres)
+    producer_count = count_tokens(producers)
+    studio_count = count_tokens(studios)
+    licensor_count = count_tokens(licensors)
+    
+    favorites_per_member = _safe_ratio(favorites, members)
+    episodes_missing = int(episodes == 0)
+    
+    features: Dict[str, object] = {
+        "genres": genres,
+        "overview": overview,
+        "type": anime_type,
+        "episodes": episodes,
+        "producers": producers,
+        "licensors": licensors,
+        "studios": studios,
+        "source": source,
+        "anime_rating": anime_rating,
+        "popularity": popularity,
+        "favorites": favorites,
+        "scored_by": scored_by,
+        "members": members,
+        "genre_count": float(genre_count),
+        "producer_count": float(producer_count),
+        "studio_count": float(studio_count),
+        "licensor_count": float(licensor_count),
+        "overview_char_len": float(len(overview)),
+        "overview_word_len": float(len(overview.split())),
+        "has_licensor": float(1 if licensor_count > 0 else 0),
+        "episodes_missing": float(episodes_missing),
+        "log_popularity": _safe_log(popularity),
+        "log_favorites": _safe_log(favorites),
+        "log_scored_by": _safe_log(scored_by),
+        "log_members": _safe_log(members),
+        "log_episodes": _safe_log(episodes),
+        "members_per_episode": _safe_ratio(members, episodes),
+        "favorites_per_episode": _safe_ratio(favorites, episodes),
+        "favorites_per_member": favorites_per_member,
+        "scored_by_per_member": _safe_ratio(scored_by, members),
+        "is_long_series": float(1 if episodes >= 50 else 0),
+    }
+    
+    return features
+
+
 def main():
     """Entry point for the Streamlit dashboard."""
 
@@ -621,48 +716,165 @@ def main():
     tab1, tab2, tab3 = st.tabs(["🎯 Predict Rating", "📊 Model Insights", "ℹ️ About"])
 
     with tab1:
-        col_form, col_result = st.columns([2, 1])
+        # Add input method selector
+        st.markdown('<p class="sub-header">Choose Input Method</p>', unsafe_allow_html=True)
+        input_method = st.radio(
+            "How would you like to predict the rating?",
+            ["📝 Enter Anime Details Manually", "🔍 Select Anime by Name"],
+            horizontal=True,
+            label_visibility="collapsed"
+        )
+        
+        st.markdown("---")
+        
+        if input_method == "🔍 Select Anime by Name":
+            # Load anime dataset
+            anime_df = load_anime_dataset()
+            
+            if anime_df is not None and not anime_df.empty:
+                col_search, col_result = st.columns([2, 1])
+                
+                with col_search:
+                    st.markdown('<p class="sub-header">🎬 Select an Anime</p>', unsafe_allow_html=True)
+                    
+                    # Create searchable selectbox
+                    anime_names = anime_df['name'].dropna().unique().tolist() if 'name' in anime_df.columns else []
+                    
+                    if anime_names:
+                        selected_anime = st.selectbox(
+                            "Search and select an anime:",
+                            options=sorted(anime_names),
+                            help="Type to search for an anime by name"
+                        )
+                        
+                        if selected_anime:
+                            # Get anime data
+                            anime_row = anime_df[anime_df['name'] == selected_anime].iloc[0]
+                            
+                            # Display anime details
+                            st.markdown("### 📊 Anime Information")
+                            
+                            detail_col1, detail_col2 = st.columns(2)
+                            with detail_col1:
+                                st.write(f"**Type:** {anime_row.get('type', 'N/A')}")
+                                st.write(f"**Episodes:** {anime_row.get('episodes', 'N/A')}")
+                                st.write(f"**Source:** {anime_row.get('source', 'N/A')}")
+                                st.write(f"**Rating:** {anime_row.get('anime_rating', 'N/A')}")
+                            
+                            with detail_col2:
+                                st.write(f"**Members:** {anime_row.get('members', 0):,.0f}")
+                                st.write(f"**Favorites:** {anime_row.get('favorites', 0):,.0f}")
+                                st.write(f"**Popularity:** #{anime_row.get('popularity', 'N/A')}")
+                            
+                            if 'genres' in anime_row and pd.notna(anime_row['genres']):
+                                st.write(f"**Genres:** {anime_row['genres']}")
+                            
+                            if 'overview' in anime_row and pd.notna(anime_row['overview']):
+                                with st.expander("📖 Synopsis"):
+                                    st.write(anime_row['overview'])
+                            
+                            # Predict button
+                            if st.button("🔮 Predict Rating for This Anime", type="primary", use_container_width=True):
+                                # Extract features from anime row
+                                user_features = extract_features_from_anime(anime_row, feature_info)
+                                prediction = predict_rating(model, feature_info, user_features)
+                                
+                                if prediction is not None:
+                                    st.session_state.prediction = prediction
+                                    st.session_state.input_features = user_features
+                                    st.session_state.selected_anime = anime_row
+                    else:
+                        st.warning("No anime names found in the dataset.")
+                
+                with col_result:
+                    if "prediction" in st.session_state and "selected_anime" in st.session_state:
+                        anime_data = st.session_state.selected_anime
+                        
+                        # Display anime image if available
+                        if 'image_url' in anime_data and pd.notna(anime_data['image_url']):
+                            try:
+                                st.image(anime_data['image_url'], use_container_width=True)
+                            except:
+                                st.info("🖼️ Image not available")
+                        
+                        # Display prediction gauge
+                        pred_value = st.session_state.prediction
+                        gauge_fig = create_prediction_gauge(pred_value)
+                        st.plotly_chart(gauge_fig, use_container_width=True)
+                        
+                        st.markdown(
+                            f'<div class="prediction-result">Predicted Rating: {pred_value:.2f}/10</div>',
+                            unsafe_allow_html=True,
+                        )
+                        
+                        # Actual rating comparison if available
+                        if 'average_rating' in anime_data and pd.notna(anime_data['average_rating']):
+                            actual = float(anime_data['average_rating'])
+                            diff = pred_value - actual
+                            st.metric(
+                                "Actual Rating", 
+                                f"{actual:.2f}/10",
+                                delta=f"{diff:+.2f} (prediction diff)"
+                            )
+                        
+                        # Rating interpretation
+                        if pred_value >= 8.5:
+                            st.success("🌟 Expected to be a standout hit!")
+                        elif pred_value >= 7.0:
+                            st.info("👍 Strong audience reception anticipated.")
+                        elif pred_value >= 5.0:
+                            st.warning("🤔 Mixed reception likely.")
+                        else:
+                            st.error("👎 Might underperform with viewers.")
+            else:
+                st.error("⚠️ Anime dataset not found. Please ensure 'Animes.csv' is in the project directory.")
+        
+        else:  # Manual input method
+            col_form, col_result = st.columns([2, 1])
 
-        with col_form:
-            user_features = create_feature_input_form(feature_info)
-            if st.button("🔮 Predict Rating", type="primary", use_container_width=True):
-                prediction = predict_rating(model, feature_info, user_features)
-                if prediction is not None:
-                    st.session_state.prediction = prediction
-                    st.session_state.input_features = user_features
+            with col_form:
+                user_features = create_feature_input_form(feature_info)
+                if st.button("🔮 Predict Rating", type="primary", use_container_width=True):
+                    prediction = predict_rating(model, feature_info, user_features)
+                    if prediction is not None:
+                        st.session_state.prediction = prediction
+                        st.session_state.input_features = user_features
+                        # Clear selected_anime when using manual input
+                        if "selected_anime" in st.session_state:
+                            del st.session_state.selected_anime
 
-        with col_result:
-            if "prediction" in st.session_state:
-                pred_value = st.session_state.prediction
-                gauge_fig = create_prediction_gauge(pred_value)
-                st.plotly_chart(gauge_fig, use_container_width=True)
-                st.markdown(
-                    f'<div class="prediction-result">Predicted Rating: {pred_value:.2f}/10</div>',
-                    unsafe_allow_html=True,
-                )
+            with col_result:
+                if "prediction" in st.session_state and "selected_anime" not in st.session_state:
+                    pred_value = st.session_state.prediction
+                    gauge_fig = create_prediction_gauge(pred_value)
+                    st.plotly_chart(gauge_fig, use_container_width=True)
+                    st.markdown(
+                        f'<div class="prediction-result">Predicted Rating: {pred_value:.2f}/10</div>',
+                        unsafe_allow_html=True,
+                    )
 
-                if pred_value >= 8.5:
-                    st.success("🌟 Expected to be a standout hit!")
-                elif pred_value >= 7.0:
-                    st.info("👍 Strong audience reception anticipated.")
-                elif pred_value >= 5.0:
-                    st.warning("🤔 Mixed reception likely.")
-                else:
-                    st.error("👎 Might underperform with viewers.")
+                    if pred_value >= 8.5:
+                        st.success("🌟 Expected to be a standout hit!")
+                    elif pred_value >= 7.0:
+                        st.info("👍 Strong audience reception anticipated.")
+                    elif pred_value >= 5.0:
+                        st.warning("🤔 Mixed reception likely.")
+                    else:
+                        st.error("👎 Might underperform with viewers.")
 
-                if "input_features" in st.session_state:
-                    st.markdown("### 🔍 Key Inputs")
-                    display_cols = [
-                        ("Members", "members"),
-                        ("Favorites", "favorites"),
-                        ("Episodes", "episodes"),
-                        ("Genres", "genre_count"),
-                    ]
-                    metrics_col1, metrics_col2 = st.columns(2)
-                    for label, key in display_cols[:2]:
-                        metrics_col1.metric(label, f"{st.session_state.input_features.get(key, 0):,.0f}")
-                    for label, key in display_cols[2:]:
-                        metrics_col2.metric(label, f"{st.session_state.input_features.get(key, 0):,.0f}")
+                    if "input_features" in st.session_state:
+                        st.markdown("### 🔍 Key Inputs")
+                        display_cols = [
+                            ("Members", "members"),
+                            ("Favorites", "favorites"),
+                            ("Episodes", "episodes"),
+                            ("Genres", "genre_count"),
+                        ]
+                        metrics_col1, metrics_col2 = st.columns(2)
+                        for label, key in display_cols[:2]:
+                            metrics_col1.metric(label, f"{st.session_state.input_features.get(key, 0):,.0f}")
+                        for label, key in display_cols[2:]:
+                            metrics_col2.metric(label, f"{st.session_state.input_features.get(key, 0):,.0f}")
 
     with tab2:
         st.markdown("## 📊 Model Performance & Insights")
