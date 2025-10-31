@@ -1010,29 +1010,11 @@ def main():
                         if "prediction" in st.session_state and "selected_anime" in st.session_state:
                             st.markdown("---")
                             
-                            # 3-column layout: Analysis (left) | Image (center) | Results (right)
-                            col_analysis, col_image, col_results = st.columns([1.2, 0.6, 1.2])
-                            
-                            with col_analysis:
-                                st.markdown("### 🔍 Analysis")
-                                
-                                # Confidence metrics
-                                confidence_html = create_confidence_metrics(
-                                    st.session_state.prediction,
-                                    st.session_state.input_features
-                                )
-                                st.markdown(confidence_html, unsafe_allow_html=True)
-                                
-                                # Feature contribution chart
-                                contrib_fig = create_feature_contribution_chart(
-                                    st.session_state.input_features,
-                                    feature_info
-                                )
-                                if contrib_fig:
-                                    st.plotly_chart(contrib_fig, use_container_width=True)
+                            # Top row: Image (left) | Gauge (right)
+                            col_image, col_gauge = st.columns([1, 1])
                             
                             with col_image:
-                                st.markdown("### 🖼️")
+                                st.markdown("### �️ Anime")
                                 anime_data = st.session_state.selected_anime
                                 # Display anime image if available
                                 if 'image_url' in anime_data and pd.notna(anime_data['image_url']):
@@ -1043,10 +1025,9 @@ def main():
                                 else:
                                     st.info("🖼️ No image")
                             
-                            with col_results:
-                                st.markdown("### 📊 Results")
+                            with col_gauge:
+                                st.markdown("### 📊 Predicted Rating")
                                 pred_value = st.session_state.prediction
-                                anime_data = st.session_state.selected_anime
                                 
                                 # Display prediction gauge
                                 gauge_fig = create_prediction_gauge(pred_value)
@@ -1061,11 +1042,34 @@ def main():
                                 if pred_value >= 8.5:
                                     st.success("🌟 Expected to be a standout hit!")
                                 elif pred_value >= 7.0:
-                                    st.info("👍 Strong audience reception anticipated.")
+                                    st.info("� Strong audience reception anticipated.")
                                 elif pred_value >= 5.0:
                                     st.warning("🤔 Mixed reception likely.")
                                 else:
                                     st.error("👎 Might underperform with viewers.")
+                            
+                            # Bottom row: Analysis (full width)
+                            st.markdown("---")
+                            st.markdown("### 🔍 Analysis")
+                            
+                            analysis_col1, analysis_col2 = st.columns([1, 1])
+                            
+                            with analysis_col1:
+                                # Confidence metrics
+                                confidence_html = create_confidence_metrics(
+                                    st.session_state.prediction,
+                                    st.session_state.input_features
+                                )
+                                st.markdown(confidence_html, unsafe_allow_html=True)
+                            
+                            with analysis_col2:
+                                # Feature contribution chart
+                                contrib_fig = create_feature_contribution_chart(
+                                    st.session_state.input_features,
+                                    feature_info
+                                )
+                                if contrib_fig:
+                                    st.plotly_chart(contrib_fig, use_container_width=True)
                 else:
                     st.warning("No anime names found in the dataset.")
             else:
@@ -1086,29 +1090,26 @@ def main():
             if "prediction" in st.session_state and "selected_anime" not in st.session_state:
                 st.markdown("---")
                 
-                # 2-column layout: Analysis (left) | Results (right)
-                col_analysis, col_results = st.columns([1.2, 1])
+                # Top row: Placeholder/Info (left) | Gauge (right)
+                col_info, col_gauge = st.columns([1, 1])
                 
-                with col_analysis:
-                    st.markdown("### 🔍 Analysis")
-                    
-                    # Confidence metrics
-                    confidence_html = create_confidence_metrics(
-                        st.session_state.prediction,
-                        st.session_state.input_features
-                    )
-                    st.markdown(confidence_html, unsafe_allow_html=True)
-                    
-                    # Feature contribution chart
-                    contrib_fig = create_feature_contribution_chart(
-                        st.session_state.input_features,
-                        feature_info
-                    )
-                    if contrib_fig:
-                        st.plotly_chart(contrib_fig, use_container_width=True)
+                with col_info:
+                    st.markdown("### � Input Summary")
+                    # Key input metrics
+                    display_cols = [
+                        ("Members", "members"),
+                        ("Favorites", "favorites"),
+                        ("Episodes", "episodes"),
+                        ("Genres", "genre_count"),
+                    ]
+                    metrics_col1, metrics_col2 = st.columns(2)
+                    for label, key in display_cols[:2]:
+                        metrics_col1.metric(label, f"{st.session_state.input_features.get(key, 0):,.0f}")
+                    for label, key in display_cols[2:]:
+                        metrics_col2.metric(label, f"{st.session_state.input_features.get(key, 0):,.0f}")
                 
-                with col_results:
-                    st.markdown("### 📊 Results")
+                with col_gauge:
+                    st.markdown("### 📊 Predicted Rating")
                     pred_value = st.session_state.prediction
                     
                     # Display prediction gauge
@@ -1128,21 +1129,29 @@ def main():
                         st.warning("🤔 Mixed reception likely!")
                     else:
                         st.error("👎 Might underperform with viewers.")
-                    
-                    # Key input metrics
-                    st.markdown("---")
-                    st.markdown("#### 📊 Key Metrics")
-                    display_cols = [
-                        ("Members", "members"),
-                        ("Favorites", "favorites"),
-                        ("Episodes", "episodes"),
-                        ("Genres", "genre_count"),
-                    ]
-                    metrics_col1, metrics_col2 = st.columns(2)
-                    for label, key in display_cols[:2]:
-                        metrics_col1.metric(label, f"{st.session_state.input_features.get(key, 0):,.0f}")
-                    for label, key in display_cols[2:]:
-                        metrics_col2.metric(label, f"{st.session_state.input_features.get(key, 0):,.0f}")
+                
+                # Bottom row: Analysis (full width)
+                st.markdown("---")
+                st.markdown("### � Analysis")
+                
+                analysis_col1, analysis_col2 = st.columns([1, 1])
+                
+                with analysis_col1:
+                    # Confidence metrics
+                    confidence_html = create_confidence_metrics(
+                        st.session_state.prediction,
+                        st.session_state.input_features
+                    )
+                    st.markdown(confidence_html, unsafe_allow_html=True)
+                
+                with analysis_col2:
+                    # Feature contribution chart
+                    contrib_fig = create_feature_contribution_chart(
+                        st.session_state.input_features,
+                        feature_info
+                    )
+                    if contrib_fig:
+                        st.plotly_chart(contrib_fig, use_container_width=True)
 
     with tab2:
         st.markdown("## 📊 Model Performance & Insights")
