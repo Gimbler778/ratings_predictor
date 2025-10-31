@@ -1022,7 +1022,7 @@ def main():
                                         st.markdown("""
                                         <style>
                                         [data-testid="stImage"] img {
-                                            max-height: 600px;
+                                            max-height: 500px;
                                             object-fit: contain;
                                             width: auto !important;
                                             margin: 0 auto;
