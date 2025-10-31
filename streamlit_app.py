@@ -193,6 +193,14 @@ def create_feature_input_form(feature_info: Dict) -> Dict:
     """Collect raw inputs and engineer the feature dictionary expected by the pipeline."""
 
     st.markdown('<p class="sub-header">🎬 Enter Anime Details</p>', unsafe_allow_html=True)
+    
+    # Anime name input
+    anime_name = st.text_input(
+        "🎯 Anime Name",
+        value="",
+        placeholder="Enter the anime name (optional)",
+        help="This helps identify your prediction but doesn't affect the rating"
+    )
 
     category_options = feature_info.get("category_options", {})
     type_options = category_options.get("type", ["TV", "Movie", "OVA", "Special", "ONA", "Music"])
@@ -341,6 +349,7 @@ def create_feature_input_form(feature_info: Dict) -> Dict:
         "favorites_per_member": favorites_per_member,
         "scored_by_per_member": _safe_ratio(scored_by, members),
         "is_long_series": float(1 if episodes >= 50 else 0),
+        "anime_name": anime_name.strip() if anime_name else "Unnamed Anime",
     }
 
     return features
@@ -1105,7 +1114,21 @@ def main():
                 col_info, col_gauge = st.columns([1, 1])
                 
                 with col_info:
-                    st.markdown("### � Input Summary")
+                    st.markdown("### 📝 Input Summary")
+                    
+                    # Display anime name if provided
+                    anime_name = st.session_state.input_features.get("anime_name", "Unnamed Anime")
+                    if anime_name and anime_name != "Unnamed Anime":
+                        st.markdown(f"**🎯 Anime:** {anime_name}")
+                        st.markdown("---")
+                    
+                    # Show type, source, and rating
+                    st.markdown(f"**Type:** {st.session_state.input_features.get('type', 'N/A')}")
+                    st.markdown(f"**Source:** {st.session_state.input_features.get('source', 'N/A')}")
+                    st.markdown(f"**Content Rating:** {st.session_state.input_features.get('anime_rating', 'N/A')}")
+                    
+                    st.markdown("---")
+                    
                     # Key input metrics
                     display_cols = [
                         ("Members", "members"),
