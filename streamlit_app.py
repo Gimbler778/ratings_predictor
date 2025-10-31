@@ -1019,7 +1019,18 @@ def main():
                                 # Display anime image if available
                                 if 'image_url' in anime_data and pd.notna(anime_data['image_url']):
                                     try:
-                                        st.image(anime_data['image_url'], use_container_width=True)
+                                        st.markdown("""
+                                        <style>
+                                        [data-testid="stImage"] img {
+                                            max-height: 400px;
+                                            object-fit: contain;
+                                            width: auto !important;
+                                            margin: 0 auto;
+                                            display: block;
+                                        }
+                                        </style>
+                                        """, unsafe_allow_html=True)
+                                        st.image(anime_data['image_url'], use_container_width=False)
                                     except:
                                         st.info("🖼️ Image not available")
                                 else:
