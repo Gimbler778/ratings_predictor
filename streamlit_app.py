@@ -946,28 +946,25 @@ def main():
             anime_df = load_anime_dataset()
             
             if anime_df is not None and not anime_df.empty:
-                col_search, col_result = st.columns([2, 1])
+                # Single column for search input
+                st.markdown('<p class="sub-header">🎬 Select an Anime</p>', unsafe_allow_html=True)
                 
-                with col_search:
-                    st.markdown('<p class="sub-header">🎬 Select an Anime</p>', unsafe_allow_html=True)
+                # Create searchable selectbox
+                anime_names = anime_df['name'].dropna().unique().tolist() if 'name' in anime_df.columns else []
+                
+                if anime_names:
+                    selected_anime = st.selectbox(
+                        "Search and select an anime:",
+                        options=sorted(anime_names),
+                        help="Type to search for an anime by name"
+                    )
                     
-                    # Create searchable selectbox
-                    anime_names = anime_df['name'].dropna().unique().tolist() if 'name' in anime_df.columns else []
-                    
-                    if anime_names:
-                        selected_anime = st.selectbox(
-                            "Search and select an anime:",
-                            options=sorted(anime_names),
-                            help="Type to search for an anime by name"
-                        )
+                    if selected_anime:
+                        # Get anime data
+                        anime_row = anime_df[anime_df['name'] == selected_anime].iloc[0]
                         
-                        if selected_anime:
-                            # Get anime data
-                            anime_row = anime_df[anime_df['name'] == selected_anime].iloc[0]
-                            
-                            # Display anime details
-                            st.markdown("### 📊 Anime Information")
-                            
+                        # Display anime details in expandable section
+                        with st.expander("📊 View Anime Details", expanded=False):
                             detail_col1, detail_col2 = st.columns(2)
                             with detail_col1:
                                 st.write(f"**Type:** {anime_row.get('type', 'N/A')}")
@@ -984,115 +981,135 @@ def main():
                                 st.write(f"**Genres:** {anime_row['genres']}")
                             
                             if 'overview' in anime_row and pd.notna(anime_row['overview']):
-                                with st.expander("📖 Synopsis"):
-                                    st.write(anime_row['overview'])
+                                st.markdown("**Synopsis:**")
+                                st.write(anime_row['overview'])
+                        
+                        # Predict button
+                        if st.button("🔮 Predict Rating for This Anime", type="primary", use_container_width=True):
+                            # Extract features from anime row
+                            user_features = extract_features_from_anime(anime_row, feature_info)
+                            prediction = predict_rating(model, feature_info, user_features)
                             
-                            # Predict button
-                            if st.button("🔮 Predict Rating for This Anime", type="primary", use_container_width=True):
-                                # Extract features from anime row
-                                user_features = extract_features_from_anime(anime_row, feature_info)
-                                prediction = predict_rating(model, feature_info, user_features)
+                            if prediction is not None:
+                                st.session_state.prediction = prediction
+                                st.session_state.input_features = user_features
+                                st.session_state.selected_anime = anime_row
+                        
+                        # Show results after prediction with new layout
+                        if "prediction" in st.session_state and "selected_anime" in st.session_state:
+                            st.markdown("---")
+                            
+                            # 3-column layout: Analysis (left) | Image (center) | Results (right)
+                            col_analysis, col_image, col_results = st.columns([1.2, 0.8, 1])
+                            
+                            with col_analysis:
+                                st.markdown("### 🔍 Analysis")
                                 
-                                if prediction is not None:
-                                    st.session_state.prediction = prediction
-                                    st.session_state.input_features = user_features
-                                    st.session_state.selected_anime = anime_row
-                    else:
-                        st.warning("No anime names found in the dataset.")
-                
-                with col_result:
-                    if "prediction" in st.session_state and "selected_anime" in st.session_state:
-                        anime_data = st.session_state.selected_anime
-                        
-                        # Display anime image if available
-                        if 'image_url' in anime_data and pd.notna(anime_data['image_url']):
-                            try:
-                                st.image(anime_data['image_url'], use_container_width=True)
-                            except:
-                                st.info("🖼️ Image not available")
-                        
-                        # Display prediction gauge
-                        pred_value = st.session_state.prediction
-                        gauge_fig = create_prediction_gauge(pred_value)
-                        st.plotly_chart(gauge_fig, use_container_width=True)
-                        
-                        st.markdown(
-                            f'<div class="prediction-result">Predicted Rating: {pred_value:.2f}/10</div>',
-                            unsafe_allow_html=True,
-                        )
-                        
-                        # Actual rating comparison if available
-                        if 'average_rating' in anime_data and pd.notna(anime_data['average_rating']):
-                            actual = float(anime_data['average_rating'])
-                            diff = pred_value - actual
-                            st.metric(
-                                "Actual Rating", 
-                                f"{actual:.2f}/10",
-                                delta=f"{diff:+.2f} (prediction diff)"
-                            )
-                        
-                        # Rating interpretation
-                        if pred_value >= 8.5:
-                            st.success("🌟 Expected to be a standout hit!")
-                        elif pred_value >= 7.0:
-                            st.info("👍 Strong audience reception anticipated.")
-                        elif pred_value >= 5.0:
-                            st.warning("🤔 Mixed reception likely.")
-                        else:
-                            st.error("👎 Might underperform with viewers.")
-                
-                # Display detailed analysis after prediction (full width)
-                if "prediction" in st.session_state and "selected_anime" in st.session_state:
-                    st.markdown("---")
-                    st.markdown("## 🔍 Detailed Analysis")
-                    
-                    analysis_col1, analysis_col2 = st.columns([1, 1])
-                    
-                    with analysis_col1:
-                        # Anime details card
-                        details_card = create_anime_details_card(
-                            st.session_state.input_features,
-                            st.session_state.selected_anime
-                        )
-                        st.markdown(details_card, unsafe_allow_html=True)
-                        
-                        # Confidence metrics
-                        confidence_html = create_confidence_metrics(
-                            st.session_state.prediction,
-                            st.session_state.input_features
-                        )
-                        st.markdown(confidence_html, unsafe_allow_html=True)
-                    
-                    with analysis_col2:
-                        # Feature contribution chart
-                        contrib_fig = create_feature_contribution_chart(
-                            st.session_state.input_features,
-                            feature_info
-                        )
-                        if contrib_fig:
-                            st.plotly_chart(contrib_fig, use_container_width=True)
+                                # Confidence metrics
+                                confidence_html = create_confidence_metrics(
+                                    st.session_state.prediction,
+                                    st.session_state.input_features
+                                )
+                                st.markdown(confidence_html, unsafe_allow_html=True)
+                                
+                                # Feature contribution chart
+                                contrib_fig = create_feature_contribution_chart(
+                                    st.session_state.input_features,
+                                    feature_info
+                                )
+                                if contrib_fig:
+                                    st.plotly_chart(contrib_fig, use_container_width=True)
+                            
+                            with col_image:
+                                anime_data = st.session_state.selected_anime
+                                # Display anime image if available
+                                if 'image_url' in anime_data and pd.notna(anime_data['image_url']):
+                                    try:
+                                        st.image(anime_data['image_url'], use_container_width=True)
+                                    except:
+                                        st.info("🖼️ Image not available")
+                            
+                            with col_results:
+                                st.markdown("### 📊 Results")
+                                pred_value = st.session_state.prediction
+                                
+                                # Display prediction gauge
+                                gauge_fig = create_prediction_gauge(pred_value)
+                                st.plotly_chart(gauge_fig, use_container_width=True)
+                                
+                                st.markdown(
+                                    f'<div class="prediction-result">Predicted Rating: {pred_value:.2f}/10</div>',
+                                    unsafe_allow_html=True,
+                                )
+                                
+                                # Actual rating comparison if available
+                                if 'average_rating' in anime_data and pd.notna(anime_data['average_rating']):
+                                    actual = float(anime_data['average_rating'])
+                                    diff = pred_value - actual
+                                    st.metric(
+                                        "Actual Rating", 
+                                        f"{actual:.2f}/10",
+                                        delta=f"{diff:+.2f} (prediction diff)"
+                                    )
+                                
+                                # Rating interpretation
+                                if pred_value >= 8.5:
+                                    st.success("🌟 Expected to be a standout hit!")
+                                elif pred_value >= 7.0:
+                                    st.info("👍 Strong audience reception anticipated.")
+                                elif pred_value >= 5.0:
+                                    st.warning("🤔 Mixed reception likely.")
+                                else:
+                                    st.error("👎 Might underperform with viewers.")
+                else:
+                    st.warning("No anime names found in the dataset.")
             else:
                 st.error("⚠️ Anime dataset not found. Please ensure 'Animes.csv' is in the project directory.")
         
         else:  # Manual input method
-            col_form, col_result = st.columns([2, 1])
-
-            with col_form:
-                user_features = create_feature_input_form(feature_info)
-                if st.button("🔮 Predict Rating", type="primary", use_container_width=True):
-                    prediction = predict_rating(model, feature_info, user_features)
-                    if prediction is not None:
-                        st.session_state.prediction = prediction
-                        st.session_state.input_features = user_features
-                        # Clear selected_anime when using manual input
-                        if "selected_anime" in st.session_state:
-                            del st.session_state.selected_anime
-
-            with col_result:
-                if "prediction" in st.session_state and "selected_anime" not in st.session_state:
+            user_features = create_feature_input_form(feature_info)
+            if st.button("🔮 Predict Rating", type="primary", use_container_width=True):
+                prediction = predict_rating(model, feature_info, user_features)
+                if prediction is not None:
+                    st.session_state.prediction = prediction
+                    st.session_state.input_features = user_features
+                    # Clear selected_anime when using manual input
+                    if "selected_anime" in st.session_state:
+                        del st.session_state.selected_anime
+            
+            # Display results after prediction with new layout
+            if "prediction" in st.session_state and "selected_anime" not in st.session_state:
+                st.markdown("---")
+                
+                # 2-column layout: Analysis (left) | Results (right)
+                col_analysis, col_results = st.columns([1.2, 1])
+                
+                with col_analysis:
+                    st.markdown("### 🔍 Analysis")
+                    
+                    # Confidence metrics
+                    confidence_html = create_confidence_metrics(
+                        st.session_state.prediction,
+                        st.session_state.input_features
+                    )
+                    st.markdown(confidence_html, unsafe_allow_html=True)
+                    
+                    # Feature contribution chart
+                    contrib_fig = create_feature_contribution_chart(
+                        st.session_state.input_features,
+                        feature_info
+                    )
+                    if contrib_fig:
+                        st.plotly_chart(contrib_fig, use_container_width=True)
+                
+                with col_results:
+                    st.markdown("### 📊 Results")
                     pred_value = st.session_state.prediction
+                    
+                    # Display prediction gauge
                     gauge_fig = create_prediction_gauge(pred_value)
                     st.plotly_chart(gauge_fig, use_container_width=True)
+                    
                     st.markdown(
                         f'<div class="prediction-result">Predicted Rating: {pred_value:.2f}/10</div>',
                         unsafe_allow_html=True,
@@ -1103,53 +1120,13 @@ def main():
                     elif pred_value >= 7.0:
                         st.info("👍 Strong audience reception anticipated.")
                     elif pred_value >= 5.0:
-                        st.warning("🤔 Mixed reception likely.")
+                        st.warning("🤔 Mixed reception likely!")
                     else:
                         st.error("👎 Might underperform with viewers.")
-            
-            # Display detailed analysis after prediction (full width)
-            if "prediction" in st.session_state and "selected_anime" not in st.session_state:
-                st.markdown("---")
-                st.markdown("## 🔍 Detailed Analysis")
-                
-                analysis_col1, analysis_col2 = st.columns([1, 1])
-                
-                with analysis_col1:
-                    # Anime details card (for manual input)
-                    details_card = create_anime_details_card(
-                        st.session_state.input_features,
-                        anime_row=None
-                    )
-                    st.markdown(details_card, unsafe_allow_html=True)
-                    
-                    # Confidence metrics
-                    confidence_html = create_confidence_metrics(
-                        st.session_state.prediction,
-                        st.session_state.input_features
-                    )
-                    st.markdown(confidence_html, unsafe_allow_html=True)
-                
-                with analysis_col2:
-                    # Feature contribution chart
-                    contrib_fig = create_feature_contribution_chart(
-                        st.session_state.input_features,
-                        feature_info
-                    )
-                    if contrib_fig:
-                        st.plotly_chart(contrib_fig, use_container_width=True)
                     
                     # Key input metrics
-                    st.markdown("""
-                    <div style="
-                        background: linear-gradient(135deg, #ffecd2 0%, #fcb69f 100%);
-                        border-radius: 12px;
-                        padding: 15px;
-                        margin-top: 10px;
-                    ">
-                        <h4 style="margin: 0 0 10px 0; color: #d35400;">� Key Metrics</h4>
-                    </div>
-                    """, unsafe_allow_html=True)
-                    
+                    st.markdown("---")
+                    st.markdown("#### 📊 Key Metrics")
                     display_cols = [
                         ("Members", "members"),
                         ("Favorites", "favorites"),
