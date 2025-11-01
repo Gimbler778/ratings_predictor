@@ -656,7 +656,7 @@ def create_feature_contribution_chart(features: Dict, feature_info: Dict) -> go.
     
     fig.update_layout(
         title=dict(
-            text="🎯 Top Feature Contributions",
+            text="Top Feature Contributions",
             font=dict(size=16, color="#FF6B6B", family="Arial Black")
         ),
         xaxis_title="Importance Score",
@@ -779,7 +779,7 @@ def create_confidence_metrics(prediction: float, features: Dict) -> str:
         margin-bottom: 15px;
     ">
         <h4 style="margin: 0 0 12px 0; font-size: 1.1rem;">
-            📊 Prediction Confidence
+            Prediction Confidence
         </h4>
         <div style="
             background: rgba(255,255,255,0.2);
@@ -918,21 +918,21 @@ def main():
         f"""
         <div style="text-align: center; margin-bottom: 1.5rem;">
             <p style="font-size: 1.2rem; color: #666;">
-                Tuned <b>XGBoost Regressor</b> explaining <b>{test_r2 * 100:.1f}%</b> of the rating variance on the test split.
+                Your go-to tool for predicting anime ratings based on key features and synopsis.
             </p>
-            <p style="font-size: 0.95rem; color: #888;">Artifacts loaded from <code>{model_path.name}</code></p>
+            <p style="font-size: 0.95rem; color: #888;">Uses XGBoost for prediction.</p>
         </div>
         """,
         unsafe_allow_html=True,
     )
 
     with st.sidebar:
-        st.markdown("## 📊 Model Snapshot")
+        st.markdown("## Model Snapshot")
         st.metric("Test R²", f"{test_r2:.3f}", delta=f"CV mean {cv_r2_mean:.3f} ± {cv_r2_std:.3f}")
         st.metric("RMSE", f"{rmse:.3f}")
         st.metric("MAE", f"{mae:.3f}")
 
-        st.markdown("### 🎯 Top Features")
+        st.markdown("### Top Features")
         top_df = pd.DataFrame(feature_info.get("top_features", [])).head(5)
         if not top_df.empty:
             for idx, row in top_df.iterrows():
@@ -941,7 +941,7 @@ def main():
             st.info("Feature importances unavailable.")
 
         data_info = feature_info.get("data_info", {})
-        st.markdown("### 📅 Training Summary")
+        st.markdown("### Training Summary")
         st.write(f"**Training Date**: {model_perf.get('training_date', 'N/A')}")
         st.write(f"**Train Samples**: {data_info.get('train_samples', 0):,}")
         st.write(f"**Test Samples**: {data_info.get('test_samples', 0):,}")
@@ -1213,28 +1213,35 @@ def main():
             f"""
             ### 🎌 Anime Rating Predictor
 
-            This interface deploys a tuned **XGBoost Regressor** trained on curated MyAnimeList metadata.
+            This application deploys a production-grade **XGBoost Regressor** trained on comprehensive MyAnimeList metadata to predict anime ratings with high accuracy.
 
-            - **Test R²**: {test_r2:.3f}
-            - **RMSE**: {rmse:.3f}
-            - **MAE**: {mae:.3f}
+            - **Test R² Score**: {test_r2:.3f}
+            - **Root Mean Squared Error**: {rmse:.3f}
+            - **Mean Absolute Error**: {mae:.3f}
 
-            #### 🔬 Highlights
-            1. 🧹 Robust preprocessing with TF-IDF + SVD for textual features and scalers for numerics.
-            2. 🛡️ Leakage-safe feature engineering (log scaling, ratios, length-based signals).
-            3. � Three-fold cross-validation with grid search for reliable hyperparameters.
+            #### 🔬 Technical Highlights
+            1. **Advanced Text Processing**: TF-IDF vectorization with Truncated SVD (20 components) for genres, overview, producers, and studios.
+            2. **Data Leakage Prevention**: Rigorous feature selection excluding post-rating variables (rank, popularity, scored_by).
+            3. **Robust Feature Engineering**: Log transformations, ratio metrics (favorites_per_member), and categorical encoding via One-Hot encoding.
+            4. **Hyperparameter Optimization**: RandomizedSearchCV with 5-fold cross-validation for optimal model configuration.
+            5. **Comprehensive Preprocessing**: StandardScaler normalization for numerical features ensuring model stability.
 
-            #### � What ships with this app
-            - Serialized pipeline (`{model_path.name}`) with preprocessing and model weights.
-            - Deployment-ready metadata for visualisations and user guidance.
-            - Interactive charts showcasing model calibration and driver signals.
+            #### 📦 Application Components
+            - **Trained Model Pipeline**: Serialized XGBoost regressor (`{model_path.name}`) with complete preprocessing transformations.
+            - **Feature Metadata**: Model performance metrics, feature importance rankings, and cross-validation statistics.
+            - **Interactive Visualizations**: Real-time prediction gauges, confidence metrics, and feature contribution analysis.
+            - **Dual Input Interface**: Anime selection from 10,577 entries or manual feature specification.
 
-            #### ⚠️ Limitations
-            - Predictions mirror historical patterns; niche or new titles may deviate.
-            - Text quality matters—concise, descriptive overviews offer better signal-to-noise.
-            - Engagement metrics (members, favorites) heavily influence predictions.
+            #### ⚠️ Model Limitations & Considerations
+            - **Historical Bias**: Predictions reflect historical rating patterns and may not capture emerging trends or novel content types.
+            - **Data Quality Dependency**: Prediction accuracy correlates with input completeness and text description quality.
+            - **Engagement Metrics Influence**: Member count and favorites strongly drive predictions due to their high feature importance.
+            - **Genre Coverage**: Performance may vary for niche genres with limited training samples.
 
-            Built with ❤️ using Streamlit, scikit-learn, and XGBoost.
+            ---
+            **Technology Stack**: Python 3.11+ • Streamlit • scikit-learn • XGBoost • Plotly  
+            **Deployment**: Streamlit Cloud with automated CI/CD via GitHub  
+            **Open Source**: MIT Licensed
             """,
             unsafe_allow_html=True,
         )
