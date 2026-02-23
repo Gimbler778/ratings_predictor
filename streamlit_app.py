@@ -1023,27 +1023,28 @@ def main():
                             col_image, col_gauge = st.columns([1, 1])
                             
                             with col_image:
-                                st.markdown("### �️ Anime")
+                                st.markdown("### 🖼️ Anime")
                                 anime_data = st.session_state.selected_anime
                                 # Display anime image if available
                                 if 'image_url' in anime_data and pd.notna(anime_data['image_url']):
+                                    image_url = str(anime_data['image_url']).strip()
                                     try:
-                                        st.markdown("""
-                                        <style>
-                                        [data-testid="stImage"] img {
-                                            max-height: 500px;
-                                            object-fit: contain;
-                                            width: auto !important;
-                                            margin: 0 auto;
-                                            display: block;
-                                        }
-                                        </style>
+                                        # Try using HTML img tag for better CORS handling
+                                        st.markdown(f"""
+                                        <div style="text-align: center;">
+                                            <img src="{image_url}" 
+                                                 style="max-height: 500px; max-width: 100%; object-fit: contain; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);"
+                                                 onerror="this.onerror=null; this.src=''; this.parentElement.innerHTML='<p style=\\'color: gray;\\'>🖼️ Image not available</p>';"
+                                                 alt="Anime Cover">
+                                        </div>
                                         """, unsafe_allow_html=True)
-                                        st.image(anime_data['image_url'], use_container_width=False)
-                                    except:
-                                        st.info("🖼️ Image not available")
+                                        # Also show a link to the image
+                                        st.caption(f"[View Image]({image_url})")
+                                    except Exception as e:
+                                        st.warning(f"🖼️ Could not load image: {str(e)}")
+                                        st.caption(f"[Image URL]({image_url})")
                                 else:
-                                    st.info("🖼️ No image")
+                                    st.info("🖼️ No image available")
                             
                             with col_gauge:
                                 st.markdown("### 📊 Predicted Rating")
